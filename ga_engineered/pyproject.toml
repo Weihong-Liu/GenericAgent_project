@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "generic-agent-engineered"
+version = "0.1.0"
+description = "Engineering-first Python rewrite scaffold for GenericAgent"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "GenericAgent contributors" }]
+dependencies = [
+  "httpx>=0.28,<1",
+  "pydantic>=2.12,<3",
+  "python-dotenv>=1.2,<2",
+  "tenacity>=9,<10",
+  "pyyaml>=6,<7",
+  "openai>=2,<3",
+  "anthropic>=0.70,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<10",
+  "pytest-asyncio>=1,<2",
+  "ruff>=0.8",
+  "mypy>=1.13",
+]
+bridge = [
+  # Runtime dependencies for the legacy TMWebDriver browser bridge that
+  # ``gae bridge`` shells into. Install with ``uv sync --extra bridge``
+  # only on machines that need ``web_scan`` / ``web_execute_js`` to read
+  # live browser pages.
+  "bottle>=0.13,<1",
+  "simple-websocket-server>=0.4,<1",
+  "beautifulsoup4>=4.12,<5",
+  "requests>=2.32,<3",
+]
+
+[project.scripts]
+GenericAgent = "generic_agent_engineered.cli:main"
+ga = "generic_agent_engineered.cli:main"
+gae = "generic_agent_engineered.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"generic_agent_engineered._tui_dist" = ["bundle.js"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

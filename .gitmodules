@@ -1,0 +1,19 @@
+[submodule "GenericAgent"]
+	path = GenericAgent
+	url = https://github.com/lsdefine/GenericAgent.git
+	branch = main
+
+[submodule "free-code"]
+	path = free-code
+	url = https://github.com/paoloanzn/free-code.git
+	branch = main
+
+[submodule "hermes-agent"]
+	path = hermes-agent
+	url = https://github.com/NousResearch/hermes-agent.git
+	branch = main
+
+[submodule ".codex/skills/architecture-diagram-generator"]
+	path = .codex/skills/architecture-diagram-generator
+	url = https://github.com/Cocoon-AI/architecture-diagram-generator
+	branch = main

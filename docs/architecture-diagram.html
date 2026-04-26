@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GenericAgent Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #020617;
+      color: #e2e8f0;
+      font-family: 'JetBrains Mono', monospace;
+      min-height: 100vh;
+      padding: 28px;
+    }
+    .container { max-width: 1180px; margin: 0 auto; }
+    .header { margin-bottom: 18px; }
+    .title-row { display: flex; align-items: center; gap: 12px; }
+    .pulse {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 18px rgba(52, 211, 153, .85);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: .45; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.15); } }
+    h1 { margin: 0; font-size: 24px; letter-spacing: 0; color: #f8fafc; }
+    .subtitle { margin: 8px 0 0 22px; color: #94a3b8; font-size: 12px; }
+    .diagram-container {
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      overflow-x: auto;
+      background: #020617;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, .35);
+    }
+    svg { display: block; min-width: 1060px; width: 100%; height: auto; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .card {
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(15, 23, 42, .72);
+    }
+    .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .cyan { background: #22d3ee; }
+    .emerald { background: #34d399; }
+    .violet { background: #a78bfa; }
+    .card h3 { margin: 0; font-size: 13px; color: #f8fafc; }
+    .card ul { margin: 0; padding-left: 0; list-style: none; color: #cbd5e1; font-size: 11px; line-height: 1.7; }
+    .footer { margin: 14px 0 0; color: #64748b; font-size: 10px; text-align: center; }
+    @media (max-width: 760px) {
+      body { padding: 16px; }
+      h1 { font-size: 18px; }
+      .subtitle { margin-left: 0; }
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title-row">
+        <div class="pulse"></div>
+        <h1>GenericAgent Architecture</h1>
+      </div>
+      <p class="subtitle">Minimal self-evolving local autonomous agent: LLM loop, atomic tools, real environment control, layered memory</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1060 820" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GenericAgent architecture diagram">
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+          </marker>
+          <marker id="roseArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <style>
+            .label { fill: #f8fafc; font-size: 11px; font-weight: 600; text-anchor: middle; }
+            .sub { fill: #94a3b8; font-size: 8.5px; text-anchor: middle; }
+            .tiny { fill: #cbd5e1; font-size: 7.5px; text-anchor: middle; }
+            .group-title { fill: #fbbf24; font-size: 12px; font-weight: 700; }
+            .flow { stroke: #64748b; stroke-width: 1.4; fill: none; marker-end: url(#arrowhead); }
+            .secure-flow { stroke: #fb7185; stroke-width: 1.2; fill: none; stroke-dasharray: 4 4; marker-end: url(#roseArrow); }
+            .learn-flow { stroke: #fb923c; stroke-width: 1.2; fill: none; stroke-dasharray: 5 4; marker-end: url(#arrowhead); }
+          </style>
+        </defs>
+
+        <rect width="1060" height="820" fill="#020617"/>
+        <rect width="1060" height="820" fill="url(#grid)" opacity="0.7"/>
+
+        <!-- Connections behind components -->
+        <path class="flow" d="M 155 125 L 155 190"/>
+        <path class="flow" d="M 155 250 C 155 290 220 290 265 290"/>
+        <path class="flow" d="M 425 290 L 490 290"/>
+        <path class="flow" d="M 650 290 L 715 290"/>
+        <path class="flow" d="M 795 330 L 795 383"/>
+        <path class="flow" d="M 795 463 L 795 520"/>
+        <path class="flow" d="M 610 330 C 610 430 715 430 715 430"/>
+        <path class="flow" d="M 570 250 C 570 190 485 170 410 170"/>
+        <path class="secure-flow" d="M 795 600 C 795 655 520 660 245 605"/>
+        <path class="learn-flow" d="M 795 600 C 630 705 300 700 155 250"/>
+
+        <!-- Boundaries -->
+        <rect x="30" y="42" width="1000" height="650" rx="12" fill="rgba(120, 53, 15, 0.12)" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="8,4"/>
+        <text x="50" y="66" class="group-title">GenericAgent/</text>
+
+        <rect x="64" y="88" width="182" height="455" rx="10" fill="rgba(8, 51, 68, 0.12)" stroke="#22d3ee" stroke-width="1.2" stroke-dasharray="6,4"/>
+        <text x="82" y="112" class="group-title" fill="#22d3ee">Entry Layer</text>
+
+        <rect x="458" y="100" width="224" height="245" rx="10" fill="rgba(6, 78, 59, 0.12)" stroke="#34d399" stroke-width="1.2" stroke-dasharray="6,4"/>
+        <text x="476" y="124" class="group-title" fill="#34d399">Reasoning Core</text>
+
+        <rect x="690" y="100" width="270" height="530" rx="10" fill="rgba(30, 41, 59, 0.18)" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="6,4"/>
+        <text x="708" y="124" class="group-title" fill="#94a3b8">Execution + Evolution</text>
+
+        <!-- Entry layer -->
+        <rect x="85" y="132" width="140" height="58" rx="6" fill="#0f172a"/>
+        <rect x="85" y="132" width="140" height="58" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="155" y="154" class="label">Frontends</text>
+        <text x="155" y="170" class="sub">Streamlit / Qt / bots</text>
+        <text x="155" y="183" class="sub">frontends/*</text>
+
+        <rect x="85" y="210" width="140" height="58" rx="6" fill="#0f172a"/>
+        <rect x="85" y="210" width="140" height="58" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="155" y="232" class="label">GeneraticAgent</text>
+        <text x="155" y="248" class="sub">queue / history / modes</text>
+        <text x="155" y="261" class="sub">agentmain.py</text>
+
+        <rect x="85" y="390" width="140" height="62" rx="6" fill="#0f172a"/>
+        <rect x="85" y="390" width="140" height="62" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="155" y="413" class="label">Task Modes</text>
+        <text x="155" y="429" class="sub">REPL / --task</text>
+        <text x="155" y="443" class="sub">--reflect / --bg</text>
+
+        <!-- Agent loop -->
+        <rect x="265" y="250" width="160" height="78" rx="6" fill="#0f172a"/>
+        <rect x="265" y="250" width="160" height="78" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="345" y="274" class="label">Agent Loop</text>
+        <text x="345" y="291" class="sub">turn loop</text>
+        <text x="345" y="305" class="sub">tool call dispatch</text>
+        <text x="345" y="318" class="sub">agent_loop.py</text>
+
+        <!-- Reasoning core -->
+        <rect x="490" y="150" width="160" height="78" rx="6" fill="#0f172a"/>
+        <rect x="490" y="150" width="160" height="78" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="570" y="174" class="label">System Prompt</text>
+        <text x="570" y="191" class="sub">sys_prompt + memory</text>
+        <text x="570" y="205" class="sub">assets/* + memory/*</text>
+        <text x="570" y="218" class="sub">get_system_prompt()</text>
+
+        <rect x="490" y="250" width="160" height="78" rx="6" fill="#0f172a"/>
+        <rect x="490" y="250" width="160" height="78" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="570" y="274" class="label">LLM Sessions</text>
+        <text x="570" y="291" class="sub">Claude / OpenAI-compatible</text>
+        <text x="570" y="305" class="sub">native + text tools</text>
+        <text x="570" y="318" class="sub">llmcore.py</text>
+
+        <!-- Execution + evolution -->
+        <rect x="715" y="250" width="160" height="80" rx="6" fill="#0f172a"/>
+        <rect x="715" y="250" width="160" height="80" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="795" y="274" class="label">Tool Handler</text>
+        <text x="795" y="291" class="sub">GenericAgentHandler</text>
+        <text x="795" y="305" class="sub">do_code_run / file / web</text>
+        <text x="795" y="318" class="sub">ga.py</text>
+
+        <rect x="715" y="382" width="160" height="82" rx="6" fill="#0f172a"/>
+        <rect x="715" y="382" width="160" height="82" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="795" y="406" class="label">Local Control</text>
+        <text x="795" y="423" class="sub">shell / filesystem</text>
+        <text x="795" y="437" class="sub">real browser / ADB</text>
+        <text x="795" y="451" class="sub">TMWebDriver + simphtml</text>
+
+        <rect x="715" y="520" width="160" height="82" rx="6" fill="#0f172a"/>
+        <rect x="715" y="520" width="160" height="82" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="795" y="544" class="label">Self-Evolution</text>
+        <text x="795" y="561" class="sub">successful task path</text>
+        <text x="795" y="575" class="sub">SOP / skill / facts</text>
+        <text x="795" y="589" class="sub">start_long_term_update</text>
+
+        <!-- Memory block -->
+        <rect x="165" y="570" width="160" height="72" rx="6" fill="#0f172a"/>
+        <rect x="165" y="570" width="160" height="72" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="245" y="594" class="label">Layered Memory</text>
+        <text x="245" y="611" class="sub">L1 insight / L2 facts</text>
+        <text x="245" y="625" class="sub">L3 SOP / L4 archive</text>
+        <text x="245" y="638" class="sub">memory/*</text>
+
+        <!-- External LLM APIs -->
+        <rect x="325" y="132" width="85" height="58" rx="6" fill="#0f172a"/>
+        <rect x="325" y="132" width="85" height="58" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="4,4"/>
+        <text x="367" y="155" class="label">LLM APIs</text>
+        <text x="367" y="171" class="sub">Claude / OAI</text>
+        <text x="367" y="184" class="sub">Kimi / etc.</text>
+
+        <!-- Tool schema -->
+        <rect x="900" y="250" width="38" height="80" rx="4" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="919" y="282" class="tiny">tool</text>
+        <text x="919" y="294" class="tiny">schema</text>
+        <text x="919" y="306" class="tiny">JSON</text>
+        <path class="flow" d="M 900 290 L 875 290"/>
+
+        <!-- Legend outside boundaries -->
+        <g transform="translate(96, 736)">
+          <rect x="0" y="0" width="868" height="46" rx="6" fill="rgba(15, 23, 42, 0.9)" stroke="#1e293b"/>
+          <circle cx="26" cy="23" r="5" fill="#22d3ee"/><text x="42" y="26" fill="#cbd5e1" font-size="9">Frontend / Local Control</text>
+          <circle cx="214" cy="23" r="5" fill="#34d399"/><text x="230" y="26" fill="#cbd5e1" font-size="9">Runtime / Backend</text>
+          <circle cx="384" cy="23" r="5" fill="#a78bfa"/><text x="400" y="26" fill="#cbd5e1" font-size="9">Prompt / Memory</text>
+          <circle cx="548" cy="23" r="5" fill="#fb923c"/><text x="564" y="26" fill="#cbd5e1" font-size="9">Self-Evolution</text>
+          <circle cx="706" cy="23" r="5" fill="#fb7185"/><text x="722" y="26" fill="#cbd5e1" font-size="9">External API Boundary</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>入口</h3></div>
+        <ul>
+          <li>• agentmain.py 统一 task queue</li>
+          <li>• frontends/* 只包装同一 Agent 核心</li>
+          <li>• 支持 REPL、task、reflect、bg 模式</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>闭环</h3></div>
+        <ul>
+          <li>• agent_loop.py 驱动 turn loop</li>
+          <li>• llmcore.py 统一多模型会话</li>
+          <li>• ga.py 执行原子工具</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>进化</h3></div>
+        <ul>
+          <li>• memory/* 保存 insight、facts、SOP</li>
+          <li>• 成功路径沉淀为长期技能</li>
+          <li>• system prompt 每轮注入关键记忆</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">Generated with the installed architecture-diagram skill style · Scope: GenericAgent/ only · 2026-04-24</p>
+  </div>
+</body>
+</html>

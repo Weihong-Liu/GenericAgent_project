@@ -1,0 +1,2183 @@
+{
+  "project": {
+    "name": "GenericAgent Engineered",
+    "root": "ga_engineered",
+    "language": "python",
+    "environment_manager": "uv",
+    "status": "release_track_complete",
+    "created_at": "2026-04-24",
+    "goal": "从 0 到 1 工程化重构 GenericAgent，保留自进化 Agent 核心，补齐 provider、auth、CLI、命令、状态、测试和发布工程能力。"
+  },
+  "references": {
+    "generic_agent": [
+      "GenericAgent/agentmain.py",
+      "GenericAgent/agent_loop.py",
+      "GenericAgent/ga.py",
+      "GenericAgent/llmcore.py",
+      "GenericAgent/TMWebDriver.py",
+      "GenericAgent/memory"
+    ],
+    "free_code_patterns": [
+      "free-code/src/entrypoints/cli.tsx: fast-path CLI bootstrap, dynamic command loading, feature gates",
+      "free-code/src/commands.ts: central command registry, dynamic skill/plugin commands, availability filtering",
+      "free-code/src/query.ts: query loop, tool orchestration, compaction, stop hooks, token budget",
+      "free-code/src/tools/*: command/tool split and UI rendering per tool"
+    ],
+    "hermes_agent_patterns": [
+      "hermes-agent/hermes_cli/main.py: profile/env pre-parse, setup/doctor/status command style",
+      "hermes-agent/hermes_cli/auth.py: provider registry, OAuth/API-key auth store, OpenAI Codex OAuth pattern",
+      "hermes-agent/hermes_cli/providers.py: provider overlays, aliases, transport definitions",
+      "hermes-agent/hermes_cli/commands.py: Python slash command registry and autocomplete metadata",
+      "hermes-agent/hermes_state.py: SQLite session store with WAL/FTS design",
+      "hermes-agent/hermes_cli/banner.py: Rich/prompt-toolkit CLI presentation"
+    ]
+  },
+  "engineering_policy": {
+    "branching": "每个 milestone 可单独分支；小步提交；commit message 遵循 AGENTS.md Lore Commit Protocol。",
+    "testing": "每个功能任务必须新增或更新单元测试；单元测试先于集成测试；外部 API/OAuth 使用 mock。",
+    "quality_gates": [
+      "uv sync --extra dev",
+      "uv run python -m unittest discover -s tests",
+      "uv run pytest",
+      "uv run ruff check .",
+      "uv run mypy src"
+    ],
+    "definition_of_done": [
+      "代码合入新工程目录，不破坏旧 GenericAgent",
+      "功能具备单元测试",
+      "文档更新",
+      "tasks/ 目录下任务报告更新",
+      "git commit 完成"
+    ]
+  },
+  "configuration_policy": {
+    "style": "参考 free-code 的 JSON settings 分层配置模式。",
+    "project_config_dir": ".generic-agent",
+    "project_settings": ".generic-agent/settings.json",
+    "global_config_home_env": "GENERIC_AGENT_HOME",
+    "global_settings": "$GENERIC_AGENT_HOME/settings.json",
+    "legacy_project_config_compatibility": [
+      ".generic-agent.json",
+      ".generic-agent.yaml",
+      ".generic-agent.yml"
+    ],
+    "rules": [
+      "后续项目级配置相关文件统一放在 .generic-agent/ 目录下。",
+      "后续全局配置相关文件统一放在 $GENERIC_AGENT_HOME/ 目录下。",
+      "不要新增散落在项目根目录的配置文件；如需兼容旧路径，只能作为读取回退。"
+    ]
+  },
+  "reporting_policy": {
+    "task_report_dir": "tasks",
+    "current_task_report": "tasks/TASK_REPORT.md",
+    "rules": [
+      "任务报告、阶段报告和交付报告统一放在 tasks/ 目录下。",
+      "根目录只保留 tasks.json 作为计划索引。"
+    ]
+  },
+  "assumptions": [
+    "新工程放在当前工作区根目录 ga_engineered，并作为独立 git 仓库开发。",
+    "旧 GenericAgent 暂不删除，先作为行为参考和迁移源。",
+    "OpenAI OAuth/Codex OAuth 先以 PKCE、loopback callback、mocked token exchange 和 AuthStore refresh 起步，再接入真实浏览器联调。",
+    "M4 已用 Rich + prompt-toolkit 完成基础 TUI；该 TUI 在 M9 中会被彻底删除，由 TypeScript/Ink 前端（ui-tui/）通过 stdio JSON-RPC gateway 调用 Python 后端唯一承担 TUI 层。M7（Textual）与 M8（可选 TS 原型）已被 M9 superseded。",
+    "Provider 抽象优先支持 OpenAI Responses、OpenAI Chat-Compatible、Anthropic Messages、Codex OAuth 四类 transport。",
+    "后续配置文件分为项目级 .generic-agent/settings.json 和全局 $GENERIC_AGENT_HOME/settings.json 两层。",
+    "OpenAI Codex OAuth 的 CLI 登录需要同时支持有头浏览器授权和无头授权；无头模式不自动打开浏览器，只输出授权 URL 并等待或接收 callback/code。"
+  ],
+  "milestones": [
+    {
+      "id": "M0",
+      "name": "Foundation",
+      "objective": "建立独立 uv 工程、基础架构、任务计划和单元测试起点。",
+      "status": "done"
+    },
+    {
+      "id": "M1",
+      "name": "Provider and Auth Layer",
+      "objective": "抽象多 LLM provider、环境变量、API key、OAuth 与 token refresh。",
+      "status": "done"
+    },
+    {
+      "id": "M2",
+      "name": "Agent Runtime",
+      "objective": "重建可测试的 Agent loop、message model、tool call dispatch、history compaction。",
+      "status": "done"
+    },
+    {
+      "id": "M3",
+      "name": "Tool Runtime",
+      "objective": "工程化文件、shell、浏览器、记忆、skill 等工具，并加入权限与输出预算。",
+      "status": "done"
+    },
+    {
+      "id": "M4",
+      "name": "CLI and Slash Commands",
+      "objective": "实现高质量 CLI/TUI、命令注册、补全、动效、状态栏、快捷命令。",
+      "status": "done"
+    },
+    {
+      "id": "M5",
+      "name": "State, Memory, and Sessions",
+      "objective": "引入 SQLite session store、FTS 搜索、checkpoint、memory index。",
+      "status": "done"
+    },
+    {
+      "id": "M6",
+      "name": "Migration and Release",
+      "objective": "从旧 GenericAgent 迁移行为、补齐集成测试、打包发布和报告。",
+      "status": "done"
+    },
+    {
+      "id": "M7",
+      "name": "Advanced TUI Experience",
+      "objective": "重做类 hermes-agent/free-code 的高级终端界面，支持默认进入 TUI、欢迎页、实时工具/命令事件、命令面板和后端事件协议。",
+      "status": "superseded",
+      "superseded_by": "M9",
+      "supersede_reason": "用户决定彻底删除 Python TUI（Rich/prompt-toolkit + Textual 计划），改由 TypeScript/Ink 前端唯一承担 TUI 层。"
+    },
+    {
+      "id": "M8",
+      "name": "Optional TypeScript TUI Frontend",
+      "objective": "在 Python runtime protocol 稳定后评估并原型化 TS/Ink 前端，保持 Python 后端为唯一 agent runtime。",
+      "status": "superseded",
+      "superseded_by": "M9",
+      "supersede_reason": "TS/Ink 前端从可选原型升级为唯一前端，相关任务并入 M9。"
+    },
+    {
+      "id": "M9",
+      "name": "TypeScript TUI Primary Frontend",
+      "objective": "用 TypeScript/Ink 重做 TUI 作为唯一前端，删除 Python prompt-toolkit TUI 与 Textual 计划；Python 后端通过 stdio JSON-RPC gateway 提供 runtime；GenericAgent / ga / gae 入口默认进入 TS TUI。",
+      "status": "done",
+      "supersedes": [
+        "M7",
+        "M8"
+      ]
+    },
+    {
+      "id": "M10",
+      "name": "Free-code-style Interactivity",
+      "objective": "对标 free-code (Claude Code) 把 TUI 输入/transcript/工具/快捷键交互全面提升：多行输入 + 历史回放 + Ctrl-R 搜索、bash + @file 模式前缀、Vim 模式、流式节流、Markdown 渲染、工具结果折叠、Shift-↑ 消息导航、工具审批提示、快捷键全集 + 通知 + 帮助页。",
+      "status": "done"
+    },
+    {
+      "id": "M11",
+      "name": "Free-code TUI Full Parity Migration",
+      "objective": "全量扫描 free-code TUI，把 ga_engineered 尚未迁移的提示输入、消息面板、工具渲染、命令/设置、权限/沙箱、会话/任务、MCP/插件/Agent/Hooks、状态通知和外部集成功能按任务队列逐项迁移，并在每个任务后完成验证、任务报告和 git 提交。",
+      "status": "done"
+    },
+    {
+      "id": "M12",
+      "name": "Free-code TUI Parity Corrections",
+      "objective": "根据真实使用反馈修正 M11 后仍存在的 free-code TUI parity 缺口：Bash 折叠输出、完成耗时、slash command 显式覆盖和 hooks 状态披露。",
+      "status": "done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "GAE-001",
+      "milestone": "M0",
+      "title": "创建 uv Python 工程骨架",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "pyproject.toml",
+        "src/generic_agent_engineered",
+        "tests",
+        "README.md"
+      ],
+      "acceptance_criteria": [
+        "工程可被 uv 识别",
+        "定义 gae console script",
+        "源码采用 src layout"
+      ],
+      "unit_tests": [
+        "tests/test_config.py",
+        "tests/test_commands.py",
+        "tests/test_providers.py",
+        "tests/test_auth_store.py"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "GAE-002",
+      "milestone": "M0",
+      "title": "建立架构文档与开发计划",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "docs/ARCHITECTURE.md",
+        "tasks.json",
+        "tasks/TASK_REPORT.md"
+      ],
+      "acceptance_criteria": [
+        "tasks.json 为合法 JSON",
+        "每个计划功能包含验收标准和测试要求",
+        "文档明确新旧运行时边界"
+      ],
+      "unit_tests": [
+        "JSON 解析校验"
+      ],
+      "dependencies": [
+        "GAE-001"
+      ]
+    },
+    {
+      "id": "GAE-003",
+      "milestone": "M1",
+      "title": "实现 ProviderSpec 与 ProviderRegistry",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "providers/base.py",
+        "providers/registry.py"
+      ],
+      "acceptance_criteria": [
+        "支持 provider id 和 alias 解析",
+        "每个 provider 声明 transport、auth_kind、env vars、base_url",
+        "未知 provider 返回明确错误"
+      ],
+      "unit_tests": [
+        "provider alias resolution",
+        "unknown provider error",
+        "duplicate provider id error"
+      ],
+      "dependencies": [
+        "GAE-001"
+      ]
+    },
+    {
+      "id": "GAE-004",
+      "milestone": "M1",
+      "title": "实现环境变量与配置文件解析",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "config.py",
+        "config_loader.py",
+        ".env.example"
+      ],
+      "acceptance_criteria": [
+        "按优先级解析 CLI args > env > project config > user config > defaults",
+        "支持 GENERIC_AGENT_HOME、GA_PROVIDER、GA_MODEL、代理变量",
+        "项目级配置统一使用 .generic-agent/settings.json",
+        "全局配置统一使用 $GENERIC_AGENT_HOME/settings.json",
+        "兼容读取 legacy project-local .generic-agent.yaml",
+        "支持 .generic-agent/settings.json 风格 JSON settings env block 与 GA_CONFIG_JSON"
+      ],
+      "unit_tests": [
+        "env precedence",
+        "project config path resolution",
+        "boolean env parsing",
+        "proxy env resolution"
+      ],
+      "dependencies": [
+        "GAE-003"
+      ]
+    },
+    {
+      "id": "GAE-005",
+      "milestone": "M1",
+      "title": "实现 API key AuthStore",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "auth/store.py"
+      ],
+      "acceptance_criteria": [
+        "auth.json 原子写入",
+        "支持 put/get/delete provider record",
+        "权限尽量设置为 0600"
+      ],
+      "unit_tests": [
+        "put/get/delete",
+        "expired token skew",
+        "atomic write result is valid JSON"
+      ],
+      "dependencies": [
+        "GAE-001"
+      ]
+    },
+    {
+      "id": "GAE-006",
+      "milestone": "M1",
+      "title": "实现 OpenAI Codex OAuth PKCE 登录",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "auth/openai_oauth.py",
+        "auth/oauth_server.py",
+        "commands /login openai-codex"
+      ],
+      "acceptance_criteria": [
+        "生成 verifier/challenge/state",
+        "本地 loopback callback 接收 code",
+        "token exchange 和 refresh 被接口化",
+        "测试中使用 mocked HTTP，不触网"
+      ],
+      "unit_tests": [
+        "PKCE challenge deterministic validation",
+        "state mismatch rejection",
+        "token refresh before expiry",
+        "logout clears OAuth record"
+      ],
+      "dependencies": [
+        "GAE-005"
+      ]
+    },
+    {
+      "id": "GAE-007",
+      "milestone": "M1",
+      "title": "实现具体 LLM provider clients",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "providers/openai_responses.py",
+        "providers/openai_chat.py",
+        "providers/anthropic_messages.py",
+        "providers/codex_oauth.py"
+      ],
+      "acceptance_criteria": [
+        "统一输出 ChatResponse 和 ToolCall",
+        "支持 streaming events",
+        "支持 tool schema 转换",
+        "provider 错误统一映射为 RuntimeError 子类"
+      ],
+      "unit_tests": [
+        "mock OpenAI responses stream parsing",
+        "mock Anthropic messages stream parsing",
+        "tool call JSON parse",
+        "provider error mapping"
+      ],
+      "dependencies": [
+        "GAE-003",
+        "GAE-006"
+      ]
+    },
+    {
+      "id": "GAE-008",
+      "milestone": "M2",
+      "title": "重建 Message、ToolCall、ToolResult 数据模型",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "runtime/messages.py",
+        "runtime/events.py"
+      ],
+      "acceptance_criteria": [
+        "内部 message model 不暴露 provider 原始格式",
+        "支持 tool_result 关联 tool_use_id",
+        "支持序列化到 session store"
+      ],
+      "unit_tests": [
+        "message serialization",
+        "tool result pairing",
+        "invalid role rejection"
+      ],
+      "dependencies": [
+        "GAE-007"
+      ]
+    },
+    {
+      "id": "GAE-009",
+      "milestone": "M2",
+      "title": "实现可测试 AgentLoop",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "runtime/agent_loop.py"
+      ],
+      "acceptance_criteria": [
+        "loop 不直接依赖具体 provider",
+        "turn lifecycle 有明确事件",
+        "无工具调用时进入 finalization path",
+        "max_turns、stop signal、retry reason 可测试"
+      ],
+      "unit_tests": [
+        "single text response completes",
+        "single tool call then final response",
+        "max_turns exceeded",
+        "stop signal exits"
+      ],
+      "dependencies": [
+        "GAE-008"
+      ]
+    },
+    {
+      "id": "GAE-010",
+      "milestone": "M2",
+      "title": "实现历史压缩与 token budget",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "runtime/compaction.py",
+        "runtime/token_budget.py"
+      ],
+      "acceptance_criteria": [
+        "压缩旧 thinking/tool 内容",
+        "保留最近 N 轮完整上下文",
+        "提供可解释的 compaction summary"
+      ],
+      "unit_tests": [
+        "old tool blocks compressed",
+        "recent messages preserved",
+        "budget threshold triggers"
+      ],
+      "dependencies": [
+        "GAE-009"
+      ]
+    },
+    {
+      "id": "GAE-011",
+      "milestone": "M3",
+      "title": "实现 Tool 接口与 ToolRegistry",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tools/base.py",
+        "tools/registry.py"
+      ],
+      "acceptance_criteria": [
+        "工具 schema、执行器、权限需求分离",
+        "支持按 name 查找和 enable/disable",
+        "工具输出统一 ToolResult"
+      ],
+      "unit_tests": [
+        "register/resolve tool",
+        "duplicate tool rejection",
+        "disabled tool blocked"
+      ],
+      "dependencies": [
+        "GAE-009"
+      ]
+    },
+    {
+      "id": "GAE-012",
+      "milestone": "M3",
+      "title": "迁移文件工具",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tools/file_read.py",
+        "tools/file_write.py",
+        "tools/file_patch.py",
+        "tools/path_security.py"
+      ],
+      "acceptance_criteria": [
+        "支持 workspace-root 约束",
+        "patch 必须唯一匹配",
+        "大文件读取有截断策略"
+      ],
+      "unit_tests": [
+        "read range",
+        "keyword search",
+        "patch unique match",
+        "path traversal blocked"
+      ],
+      "dependencies": [
+        "GAE-011"
+      ]
+    },
+    {
+      "id": "GAE-013",
+      "milestone": "M3",
+      "title": "迁移 shell/code_run 工具",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tools/shell.py",
+        "tools/code_run.py",
+        "tools/permissions.py"
+      ],
+      "acceptance_criteria": [
+        "Python 和 shell 执行路径分离",
+        "支持 timeout、stop signal、stdout streaming",
+        "危险命令进入 approval/yolo 策略"
+      ],
+      "unit_tests": [
+        "successful command",
+        "timeout kills process",
+        "dangerous command classified",
+        "yolo bypass only when enabled"
+      ],
+      "dependencies": [
+        "GAE-011"
+      ]
+    },
+    {
+      "id": "GAE-014",
+      "milestone": "M3",
+      "title": "工程化浏览器工具",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "tools/browser.py",
+        "tools/defaults.py",
+        "browser/cdp_bridge.py",
+        "browser/html_simplifier.py"
+      ],
+      "acceptance_criteria": [
+        "兼容旧 TMWebDriver 行为",
+        "browser session 状态独立管理",
+        "web_open 可打开 URL 或搜索 query",
+        "web_scan 与 execute_js 有输出预算",
+        "本地 TMWebDriver /link bridge 请求不受 shell 代理环境影响"
+      ],
+      "unit_tests": [
+        "session list parsing",
+        "html simplification removes noise",
+        "execute_js result normalization",
+        "cdp bridge bypasses proxy environment"
+      ],
+      "dependencies": [
+        "GAE-011"
+      ]
+    },
+    {
+      "id": "GAE-015",
+      "milestone": "M4",
+      "title": "实现中心 slash command registry",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "commands.py"
+      ],
+      "acceptance_criteria": [
+        "命令定义包含 category、alias、args_hint、subcommands",
+        "支持 resolve_command",
+        "支持按 category 展示"
+      ],
+      "unit_tests": [
+        "core commands exist",
+        "alias resolution",
+        "category grouping"
+      ],
+      "dependencies": [
+        "GAE-001"
+      ]
+    },
+    {
+      "id": "GAE-016",
+      "milestone": "M4",
+      "title": "实现 CLI bootstrap 与 doctor/status",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "cli/__init__.py",
+        "cli/__main__.py",
+        "cli/doctor.py",
+        "cli/status.py"
+      ],
+      "acceptance_criteria": [
+        "--version 是快速路径",
+        "doctor 检查 provider/auth/state/tool 环境",
+        "status 输出 session、model、provider、home"
+      ],
+      "unit_tests": [
+        "cli --version",
+        "cli doctor returns zero on scaffold",
+        "status formatting"
+      ],
+      "dependencies": [
+        "GAE-015"
+      ]
+    },
+    {
+      "id": "GAE-017",
+      "milestone": "M4",
+      "title": "实现 Rich/prompt-toolkit 交互 CLI",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "ui/console.py",
+        "ui/banner.py",
+        "ui/statusbar.py",
+        "ui/spinner.py",
+        "ui/completion.py",
+        "ui/tui.py",
+        "chat.py"
+      ],
+      "acceptance_criteria": [
+        "启动 banner、模型状态栏、tool progress 动效可关闭",
+        "slash command 补全来自 registry",
+        "支持 gae --tui、gae tui、空参数 gae chat 进入 TUI",
+        "TUI 普通输入通过 AgentLoop 调用当前 provider",
+        "非 TTY 自动降级到 plain text"
+      ],
+      "unit_tests": [
+        "non-tty fallback",
+        "completion source uses command registry",
+        "statusbar renders current provider/model",
+        "tui dispatches slash commands",
+        "cli routes tui entrypoints",
+        "chat turn service updates runtime messages",
+        "chat turn service sends default tool schemas"
+      ],
+      "dependencies": [
+        "GAE-016"
+      ]
+    },
+    {
+      "id": "GAE-018",
+      "milestone": "M4",
+      "title": "补齐 free-code 风格快捷命令",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "commands/session.py",
+        "commands/config.py",
+        "commands/tools.py",
+        "commands/memory.py",
+        "commands/skills.py"
+      ],
+      "acceptance_criteria": [
+        "/new /clear /history /retry /undo /compact /resume 可用",
+        "/model /providers /login /logout /config /env 可用",
+        "/login openai-codex 支持 --headless，无浏览器环境只打印授权 URL 并等待或接收 callback/code",
+        "/tools /skills /memory /doctor /usage 可用",
+        "命令实现与 registry 解耦"
+      ],
+      "unit_tests": [
+        "each command handler has unit coverage",
+        "headless OAuth login command does not call webbrowser",
+        "unknown command returns suggestion",
+        "command availability can be filtered"
+      ],
+      "dependencies": [
+        "GAE-017"
+      ]
+    },
+    {
+      "id": "GAE-019",
+      "milestone": "M5",
+      "title": "实现 SQLite session store",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "state/session_store.py",
+        "state/schema.sql"
+      ],
+      "acceptance_criteria": [
+        "WAL 模式",
+        "sessions/messages 表",
+        "FTS5 搜索消息内容",
+        "支持 parent_session_id 分支"
+      ],
+      "unit_tests": [
+        "create session",
+        "append message",
+        "search messages",
+        "branch session"
+      ],
+      "dependencies": [
+        "GAE-008"
+      ]
+    },
+    {
+      "id": "GAE-020",
+      "milestone": "M5",
+      "title": "实现 memory service 与 skill crystallization",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "memory/service.py",
+        "memory/index.py",
+        "skills/crystallizer.py"
+      ],
+      "acceptance_criteria": [
+        "读取旧 GenericAgent memory 作为迁移源",
+        "区分 L1/L2/L3/L4",
+        "成功任务可生成 SOP draft",
+        "人工审核后写入 memory"
+      ],
+      "unit_tests": [
+        "memory layer classification",
+        "legacy GenericAgent memory migration",
+        "SOP draft generation from structured summary",
+        "duplicate skill detection",
+        "reviewed memory write gate"
+      ],
+      "dependencies": [
+        "GAE-019"
+      ]
+    },
+    {
+      "id": "GAE-021",
+      "milestone": "M6",
+      "title": "行为迁移与兼容测试",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tests/compat",
+        "docs/MIGRATION.md"
+      ],
+      "acceptance_criteria": [
+        "旧 agentmain.py 的 REPL/task/reflect 关键路径有对应新实现",
+        "旧 tools_schema.json 的工具均有迁移计划或明确弃用说明",
+        "README 提供迁移步骤"
+      ],
+      "unit_tests": [
+        "compat fixture: no-tool final response",
+        "compat fixture: file_read tool call",
+        "compat fixture: code_run tool call"
+      ],
+      "dependencies": [
+        "GAE-020"
+      ]
+    },
+    {
+      "id": "GAE-022",
+      "milestone": "M6",
+      "title": "发布、报告与交付",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tasks/TASK_REPORT.md",
+        "CHANGELOG.md",
+        "docs/RELEASE_CHECKLIST.md"
+      ],
+      "acceptance_criteria": [
+        "全部 P0/P1 测试通过",
+        "任务报告列出完成项、测试证据、剩余风险",
+        "git commit 使用 Lore Commit Protocol"
+      ],
+      "unit_tests": [
+        "release checklist JSON/Markdown link validation"
+      ],
+      "dependencies": [
+        "GAE-021"
+      ]
+    },
+    {
+      "id": "GAE-023",
+      "milestone": "M7",
+      "title": "制定高级 TUI 架构与交互规范",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tasks/TUI_REDESIGN_PLAN.md",
+        "tasks.json"
+      ],
+      "acceptance_criteria": [
+        "明确 Textual 优先、TS/Ink 可选的路线选择",
+        "定义欢迎页、主聊天区、工具事件区、命令面板、状态栏和输入区",
+        "定义 GenericAgent/ga 默认进入 TUI 的 CLI 行为",
+        "定义实时 tool/command/process 事件展示规范"
+      ],
+      "unit_tests": [
+        "tasks.json validates as JSON",
+        "plan artifact exists"
+      ],
+      "dependencies": [
+        "GAE-022"
+      ]
+    },
+    {
+      "id": "GAE-024",
+      "milestone": "M7",
+      "title": "抽象交互后端与 runtime event protocol",
+      "status": "superseded_by_GAE-031",
+      "priority": "P0",
+      "deliverables": [
+        "runtime/interactive_backend.py",
+        "runtime/protocol.py",
+        "cli/runtime_server.py",
+        "tests/test_runtime_protocol.py"
+      ],
+      "acceptance_criteria": [
+        "TUI 通过统一后端接口发送 prompt、slash command 和 cancel/interrupt",
+        "后端输出 assistant delta、tool call、tool result、shell output、command output、status update 事件",
+        "提供 gae runtime serve --stdio 给未来 TS TUI 自动拉起 Python 后端",
+        "协议为 JSON Lines，消息可 round-trip 序列化"
+      ],
+      "unit_tests": [
+        "protocol message serialization",
+        "backend emits tool lifecycle events",
+        "stdio server handles request/result/event frames",
+        "slash command output becomes protocol event"
+      ],
+      "dependencies": [
+        "GAE-023",
+        "GAE-009",
+        "GAE-011",
+        "GAE-018"
+      ]
+    },
+    {
+      "id": "GAE-025",
+      "milestone": "M7",
+      "title": "实现 Textual 高级 TUI 主界面",
+      "status": "superseded_by_M9",
+      "priority": "P0",
+      "deliverables": [
+        "ui/textual_app.py",
+        "ui/theme.py",
+        "ui/widgets/transcript.py",
+        "ui/widgets/tool_timeline.py",
+        "ui/widgets/command_palette.py",
+        "tests/test_textual_tui.py"
+      ],
+      "acceptance_criteria": [
+        "顶部显示 session/provider/model/token/tool 状态",
+        "欢迎页包含 GenericAgent ASCII logo、紧凑 emblem、快捷命令和当前配置",
+        "主聊天区实时显示 user/assistant/tool/command/process 事件",
+        "底部输入框支持 slash command 补全、历史、Tab 补全和 Ctrl-C 中断",
+        "窄终端自动降级为单列布局"
+      ],
+      "unit_tests": [
+        "Textual app mounts core widgets",
+        "welcome screen renders responsive fallback",
+        "tool event creates timeline entry",
+        "command palette filters slash commands",
+        "input submit sends backend prompt"
+      ],
+      "dependencies": [
+        "GAE-024"
+      ]
+    },
+    {
+      "id": "GAE-026",
+      "milestone": "M7",
+      "title": "调整 CLI 入口与自动后端启动",
+      "status": "superseded_by_GAE-037",
+      "priority": "P0",
+      "deliverables": [
+        "pyproject.toml",
+        "cli/__init__.py",
+        "tests/test_cli.py"
+      ],
+      "acceptance_criteria": [
+        "uv run ga、uv run GenericAgent、uv run gae 默认直接进入高级 TUI",
+        "显式 gae doctor/status/commands/task/reflect 行为保持兼容",
+        "TUI 启动时自动创建 Python interactive backend",
+        "无 Textual 或非交互终端时回退到现有 plain/prompt-toolkit 路径"
+      ],
+      "unit_tests": [
+        "ga script points to cli main",
+        "GenericAgent script points to cli main",
+        "empty argv enters tui",
+        "explicit subcommands bypass tui",
+        "missing Textual fallback"
+      ],
+      "dependencies": [
+        "GAE-025"
+      ]
+    },
+    {
+      "id": "GAE-027",
+      "milestone": "M7",
+      "title": "实现 free-code 风格实时工具与命令渲染",
+      "status": "superseded_by_GAE-035",
+      "priority": "P0",
+      "deliverables": [
+        "ui/widgets/tool_timeline.py",
+        "ui/widgets/process_log.py",
+        "tools/streaming.py",
+        "tests/test_tool_event_rendering.py"
+      ],
+      "acceptance_criteria": [
+        "工具调用开始、参数、输出、错误、耗时和最终状态可见",
+        "shell/code_run 输出按 chunk 实时进入 process log",
+        "web_open/web_scan/web_execute_js 显示浏览器动作和 bridge 错误细节",
+        "长输出可折叠/展开，默认不刷屏",
+        "失败事件保留可复制的错误摘要"
+      ],
+      "unit_tests": [
+        "shell chunk becomes process event",
+        "tool result error renders detail",
+        "long output is collapsible",
+        "browser bridge error renders actionable message"
+      ],
+      "dependencies": [
+        "GAE-024",
+        "GAE-025"
+      ]
+    },
+    {
+      "id": "GAE-028",
+      "milestone": "M7",
+      "title": "补齐 hermes-agent 风格欢迎页与主题系统",
+      "status": "superseded_by_GAE-034",
+      "priority": "P1",
+      "deliverables": [
+        "ui/banner.py",
+        "ui/theme.py",
+        "ui/widgets/welcome.py",
+        "tests/test_welcome_screen.py"
+      ],
+      "acceptance_criteria": [
+        "提供全宽 GenericAgent ASCII logo，终端不足宽时自动切换 compact logo",
+        "提供左侧 emblem/徽标面板，风格参考 hermes-agent 但品牌为 GenericAgent",
+        "欢迎页显示 provider/model/auth/session/config 路径和常用命令",
+        "主题颜色集中配置，plain 模式不输出 Rich/Textual 标记"
+      ],
+      "unit_tests": [
+        "wide logo selected above width threshold",
+        "compact logo selected below width threshold",
+        "theme palette has required tokens",
+        "plain banner strips markup"
+      ],
+      "dependencies": [
+        "GAE-025"
+      ]
+    },
+    {
+      "id": "GAE-029",
+      "milestone": "M7",
+      "title": "TUI 集成测试、文档与任务报告",
+      "status": "superseded_by_GAE-038",
+      "priority": "P0",
+      "deliverables": [
+        "tests/test_textual_tui.py",
+        "docs/TUI.md",
+        "README.md",
+        "tasks/TASK_REPORT.md",
+        "CHANGELOG.md"
+      ],
+      "acceptance_criteria": [
+        "TUI 关键交互有 mock provider 测试",
+        "CLI 默认入口和回退路径有测试",
+        "文档说明 GenericAgent/ga/gae 启动方式",
+        "任务报告记录变更、测试、剩余风险"
+      ],
+      "unit_tests": [
+        "mock chat turn streams into UI",
+        "slash command renders command result",
+        "tool call lifecycle renders in order",
+        "fallback tui path remains usable"
+      ],
+      "dependencies": [
+        "GAE-026",
+        "GAE-027",
+        "GAE-028"
+      ]
+    },
+    {
+      "id": "GAE-030",
+      "milestone": "M8",
+      "title": "评估并原型化可选 TypeScript/Ink TUI",
+      "status": "superseded_by_M9",
+      "priority": "P2",
+      "deliverables": [
+        "docs/TUI_TS_SPIKE.md",
+        "apps/tui-ts",
+        "tests/test_runtime_protocol.py"
+      ],
+      "acceptance_criteria": [
+        "TS TUI 只通过 gae runtime serve --stdio 调 Python 后端",
+        "不复制 provider/tool/session 业务逻辑到 TS",
+        "原型能发送 prompt、接收 assistant/tool 事件并渲染 transcript",
+        "给出是否转为正式前端的取舍建议"
+      ],
+      "unit_tests": [
+        "stdio protocol compatibility fixture",
+        "TS frontend smoke test if Node toolchain is present"
+      ],
+      "dependencies": [
+        "GAE-024",
+        "GAE-029"
+      ]
+    },
+    {
+      "id": "GAE-031",
+      "milestone": "M9",
+      "title": "Gateway 协议设计与登记",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tasks/TUI_TS_PROTOCOL.md",
+        "tasks.json"
+      ],
+      "acceptance_criteria": [
+        "协议文档定义帧格式（line-delimited JSON）、frame types（request/response/event）、错误码、生命周期",
+        "明确所有 RPC 方法签名（chat.send / chat.cancel / commands.list / commands.dispatch / tools.list / runtime.status / session.new / gateway.shutdown）",
+        "事件载荷直接复用 RuntimeEvent.to_dict()",
+        "tasks.json 登记 M9 milestone 并 supersede M7/M8"
+      ],
+      "unit_tests": [
+        "tasks.json 仍是合法 JSON（CI 可由 python -m json.tool 校验）"
+      ],
+      "dependencies": [
+        "GAE-022"
+      ]
+    },
+    {
+      "id": "GAE-032",
+      "milestone": "M9",
+      "title": "Python Gateway stdio JSON-RPC 服务",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "src/generic_agent_engineered/gateway/__init__.py",
+        "src/generic_agent_engineered/gateway/__main__.py",
+        "src/generic_agent_engineered/gateway/protocol.py",
+        "src/generic_agent_engineered/gateway/server.py",
+        "tests/test_gateway_protocol.py",
+        "tests/test_gateway_server.py"
+      ],
+      "acceptance_criteria": [
+        "python -m generic_agent_engineered.gateway 启动后立即发送 gateway.ready 事件",
+        "RuntimeEvent 通过 to_dict 序列化为 event 帧实时下发，不等待 turn 结束",
+        "chat.send 期间二次 chat.send 返回 -32001 runtime busy",
+        "chat.cancel 设置 AgentLoop stop signal 并立即响应",
+        "commands.list / commands.dispatch / tools.list / runtime.status 全部就位"
+      ],
+      "unit_tests": [
+        "frame parser 拒绝 invalid JSON 并回 -32700",
+        "method not found 回 -32601",
+        "fake provider chat.send 流式发出 turn_started → content_delta → message_done → turn_finished",
+        "chat.cancel 中断进行中的 chat.send",
+        "commands.dispatch 正确路由 /help"
+      ],
+      "dependencies": [
+        "GAE-031"
+      ]
+    },
+    {
+      "id": "GAE-033",
+      "milestone": "M9",
+      "title": "TS 项目脚手架与 Gateway 客户端",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/package.json",
+        "ui-tui/tsconfig.json",
+        "ui-tui/esbuild.config.mjs",
+        "ui-tui/vitest.config.ts",
+        "ui-tui/src/entry.tsx",
+        "ui-tui/src/App.tsx",
+        "ui-tui/src/state/transcriptStore.ts",
+        "ui-tui/src/gatewayClient.ts",
+        "ui-tui/src/schemas.ts",
+        "ui-tui/src/types.ts",
+        "ui-tui/src/__tests__/gatewayClient.test.ts",
+        "ui-tui/src/__tests__/transcriptStore.test.ts"
+      ],
+      "acceptance_criteria": [
+        "ui-tui/ 是独立 pnpm workspace（依赖 ink ^6.8、react ^19.2、unicode-animations、zod）",
+        "gatewayClient spawn python 子进程并按 line-delimited JSON 切帧",
+        "RPC 调用是 Promise 化的，事件通过 EventEmitter 发布",
+        "schemas.ts 用 zod 镜像 TUI_TS_PROTOCOL.md 的全部 result schema 与 event payload，作为类型与运行时双重 source of truth",
+        "App.tsx 是 Ink 顶层组件：拥有 transcriptStore（user/assistant/tool/error 时间线），订阅 gatewayClient 事件 → 更新 store → 子组件渲染",
+        "App.tsx 启动时按协议先 runtime.status 拉 protocol_version，主版本不匹配则 abort 并打印明确错误",
+        "pnpm test 通过；pnpm build 产出 dist/bundle.js 单文件"
+      ],
+      "unit_tests": [
+        "gatewayClient mock 子进程：发送 request、收到 response、收到 event 都正确分派",
+        "frame splitter 处理粘包/拆包",
+        "zod schema 拒绝畸形 event"
+      ],
+      "dependencies": [
+        "GAE-032"
+      ]
+    },
+    {
+      "id": "GAE-034",
+      "milestone": "M9",
+      "title": "欢迎页与品牌组件",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/banner.ts",
+        "ui-tui/src/components/branding.tsx",
+        "ui-tui/src/__tests__/branding.test.tsx"
+      ],
+      "acceptance_criteria": [
+        "LOGO_ART 渲染 GENERICAGENT 字样并使用金色渐变 #FFD700 → #FFBF00 → #CD7F32",
+        "CADUCEUS_ART 在终端 ≥ 95 列时显示在左侧 30 列",
+        "SessionPanel 通过 runtime.status RPC 拉取 model/provider/tools/skills 计数并右对齐",
+        "终端 < 95 列降级为单列：仅 logo + 提示行"
+      ],
+      "unit_tests": [
+        "渲染快照在 120 / 95 / 80 / 60 列下稳定",
+        "runtime.status 失败时降级显示 \"loading...\""
+      ],
+      "dependencies": [
+        "GAE-033"
+      ]
+    },
+    {
+      "id": "GAE-035",
+      "milestone": "M9",
+      "title": "工具调用实时展示与 Spinner",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/thinking.tsx",
+        "ui-tui/src/state/activityStore.ts",
+        "ui-tui/src/components/streamCursor.tsx",
+        "ui-tui/src/__tests__/thinking.test.tsx"
+      ],
+      "acceptance_criteria": [
+        "tool_call 事件创建一行 ├─ 🔧 name(args_preview)，进行中显示 cascade/scan braille spinner",
+        "tool_result 事件更新该行：成功 └─ ✓ 0.42s、失败 └─ ✗ error_summary",
+        "content_delta 事件累计写入当前 assistant 气泡，▍ StreamCursor 跟随末尾闪烁",
+        "turn 结束时 StreamCursor 移除"
+      ],
+      "unit_tests": [
+        "事件序列 tool_call → tool_result 渲染为成对树节点",
+        "失败 tool_result 显示截断 error 摘要",
+        "content_delta 增量拼接"
+      ],
+      "dependencies": [
+        "GAE-034"
+      ]
+    },
+    {
+      "id": "GAE-036",
+      "milestone": "M9",
+      "title": "Slash 命令补全、输入框与状态栏",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/textInput.tsx",
+        "ui-tui/src/components/slashOverlay.tsx",
+        "ui-tui/src/components/statusBar.tsx",
+        "ui-tui/src/__tests__/slashOverlay.test.tsx"
+      ],
+      "acceptance_criteria": [
+        "启动时调 commands.list 缓存命令清单",
+        "输入以 / 开头时弹出补全菜单，模糊匹配 + 方向键选择 + Tab 补全",
+        "普通文本走 chat.send，/-前缀走 commands.dispatch",
+        "底部状态栏显示 provider · model · turn N/200 · tokens M/budget · 快捷命令提示，每次 turn_finished 刷新"
+      ],
+      "unit_tests": [
+        "/he 输入弹出 /help",
+        "Tab 选中第一个候选后自动补全",
+        "状态栏在 token 接近 budget 时变红"
+      ],
+      "dependencies": [
+        "GAE-035"
+      ]
+    },
+    {
+      "id": "GAE-037",
+      "milestone": "M9",
+      "title": "Python 入口切换与删除旧 TUI",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "pyproject.toml",
+        "src/generic_agent_engineered/cli/launcher.py",
+        "src/generic_agent_engineered/cli/__init__.py"
+      ],
+      "removals": [
+        "src/generic_agent_engineered/ui/",
+        "tests/test_ui.py（仅删 TUI 部分）"
+      ],
+      "acceptance_criteria": [
+        "[project.scripts] 新增 GenericAgent = ga_launcher; ga = ga_launcher; gae 保留为别名",
+        "launcher.py 定位打包好的 ui-tui/dist/bundle.js 并 subprocess.Popen('node', bundle, *argv) 直通 stdio",
+        "src/generic_agent_engineered/ui/ 整个目录删除",
+        "cli/__init__.py 移除 _run_tui 和 --tui/--plain/--no-animations 标志",
+        "gae doctor / gae status / gae --version 行为不变"
+      ],
+      "unit_tests": [
+        "launcher 找不到 bundle 时给出明确报错",
+        "argv 透传到子进程",
+        "gae --version 仍打印版本号",
+        "tests/test_cli.py 不再 import ui.*"
+      ],
+      "dependencies": [
+        "GAE-036"
+      ]
+    },
+    {
+      "id": "GAE-038",
+      "milestone": "M9",
+      "title": "构建/分发、e2e、文档与 milestone 收尾",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ga_engineered/scripts/build_tui.sh",
+        "src/generic_agent_engineered/_tui_dist/bundle.js（构建产物，git 忽略）",
+        "tests/test_tui_e2e.py",
+        "docs/tui.md",
+        "README.md",
+        "CHANGELOG.md",
+        "tasks/TASK_REPORT.md",
+        "tasks.json"
+      ],
+      "acceptance_criteria": [
+        "build_tui.sh 一行命令完成 pnpm install + pnpm build + 拷贝产物",
+        "hatch.build 把 _tui_dist/ 包入 wheel",
+        "pexpect e2e：启动 GenericAgent → 喂 /help → 看到 banner + help 输出 → /exit",
+        "README/CHANGELOG/docs/tui.md 全部更新到 TS TUI 描述",
+        "tasks.json M9 标记 done"
+      ],
+      "unit_tests": [
+        "e2e 在 CI 跳过（仅 local manual）",
+        "build_tui.sh 在干净 checkout 上能跑通"
+      ],
+      "dependencies": [
+        "GAE-037"
+      ]
+    },
+    {
+      "id": "GAE-039",
+      "milestone": "M10",
+      "title": "Multiline TextInput + 历史回放 + Ctrl-R 搜索",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/textInput.tsx",
+        "ui-tui/src/components/historySearchOverlay.tsx",
+        "ui-tui/src/state/inputBuffer.ts",
+        "ui-tui/src/hooks/useInputHistory.ts",
+        "ui-tui/src/hooks/usePasteDetection.ts",
+        "ui-tui/src/__tests__/inputBuffer.test.ts",
+        "ui-tui/src/__tests__/useInputHistory.test.ts"
+      ],
+      "acceptance_criteria": [
+        "替换 ink-text-input 为自定义 MultilineTextInput",
+        "光标移动: arrows / Home/End / Ctrl-Left/Right (word jump) / Ctrl-A/E",
+        "编辑: Backspace/Delete/Ctrl-W (kill word) / Ctrl-U (kill line) / Ctrl-K (kill to end)",
+        "Shift-Enter / Alt-Enter 换行；plain Enter 提交；视觉换行 + viewport 截断",
+        "↑/↓ 历史回放，草稿暂存，模式过滤（chat vs bash）",
+        "持久化历史到 $GENERIC_AGENT_HOME/history.jsonl，每模式独立",
+        "Ctrl-R 全屏搜索 overlay + fuzzy match",
+        "bracketed paste 检测，粘贴期间禁用 Enter 提交"
+      ],
+      "unit_tests": [
+        "InputBuffer 光标增删与 word jump",
+        "kill-word / kill-line 行为",
+        "history reducer up/down/draft 暂存",
+        "fuzzy 搜索排序",
+        "bracketed paste 序列识别"
+      ],
+      "dependencies": [
+        "GAE-038"
+      ]
+    },
+    {
+      "id": "GAE-040",
+      "milestone": "M10",
+      "title": "模式前缀（Bash + File mention）",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/state/modeDetector.ts",
+        "ui-tui/src/components/fileMentionOverlay.tsx",
+        "ui-tui/src/__tests__/modeDetector.test.ts"
+      ],
+      "acceptance_criteria": [
+        "! 前缀进入 bash 模式：提交时通过 commands.dispatch /bash <cmd> 执行",
+        "@ 前缀触发文件选择器：fuzzy 搜索 workspace 文件",
+        "输入框前缀 glyph 随模式变色（chat:cyan ›、bash:yellow $、mention:magenta @）",
+        "Tab 接受文件选择并插入路径",
+        "切换模式时保留输入文本"
+      ],
+      "unit_tests": [
+        "modeDetector 识别 chat/bash/mention",
+        "fuzzy 文件路径排序",
+        "Tab 选中后回填到 buffer"
+      ],
+      "dependencies": [
+        "GAE-039"
+      ]
+    },
+    {
+      "id": "GAE-041",
+      "milestone": "M10",
+      "title": "Vim 模式（INSERT/NORMAL/VISUAL/OPERATOR）",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "ui-tui/src/hooks/useVimInput.ts",
+        "ui-tui/src/state/vimReducer.ts",
+        "ui-tui/src/__tests__/vimReducer.test.ts"
+      ],
+      "acceptance_criteria": [
+        "/vim on|off 命令切换；GA_VIM_MODE 环境变量初始值",
+        "Esc → NORMAL；i/I/a/A/o/O → INSERT；v → VISUAL",
+        "motion: hjkl, w/b/e, 0/$/^, gg/G, f/F/t/T",
+        "operator: d / c / y 配 motion；dd/yy/cc 整行；x 删字符",
+        "u undo / Ctrl-R redo",
+        "状态栏 mode pill: NORMAL / INSERT / VISUAL"
+      ],
+      "unit_tests": [
+        "motion 计算正确光标位置",
+        "operator + motion 删除/拷贝",
+        "undo 回到先前状态",
+        "VISUAL 选区 → operator 应用到选区"
+      ],
+      "dependencies": [
+        "GAE-039"
+      ]
+    },
+    {
+      "id": "GAE-042",
+      "milestone": "M10",
+      "title": "流式渲染节流 + Thinking 态 + 动画光标",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/hooks/useStreamThrottle.ts",
+        "ui-tui/src/components/thinkingIndicator.tsx",
+        "ui-tui/src/__tests__/useStreamThrottle.test.ts"
+      ],
+      "acceptance_criteria": [
+        "content_delta 16ms 帧批处理（合并到下一个 requestAnimationFrame 等价）",
+        "transcript 用 React.useDeferredValue 让用户输入不被慢渲染卡住",
+        "begin_turn 后 first content_delta 之前显示 'thinking' spinner",
+        "动画 ▍ 光标跟在最后一个 content_delta 末尾，turn 结束移除"
+      ],
+      "unit_tests": [
+        "throttle 合并多个连续 push",
+        "throttle flush 在 idle 后清空",
+        "thinking 态判定逻辑"
+      ],
+      "dependencies": [
+        "GAE-038"
+      ]
+    },
+    {
+      "id": "GAE-043",
+      "milestone": "M10",
+      "title": "Markdown 内联渲染",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "ui-tui/src/markdown/parser.ts",
+        "ui-tui/src/markdown/renderer.tsx",
+        "ui-tui/src/__tests__/markdown.test.ts"
+      ],
+      "acceptance_criteria": [
+        "支持 **bold** / *italic* / `code` / # ## ### 标题 / [text](url) / ``` 代码块",
+        "代码块识别 language 标签并以 dim 颜色显示",
+        "纯文本部分原样渲染",
+        "解析失败 fallback 到原始文本（不崩溃）",
+        "助手消息使用，user/system/error 不解析"
+      ],
+      "unit_tests": [
+        "粗体/斜体/code 识别",
+        "代码块多行解析",
+        "嵌套样式: **bold *italic***",
+        "畸形输入不抛异常"
+      ],
+      "dependencies": [
+        "GAE-038"
+      ]
+    },
+    {
+      "id": "GAE-044",
+      "milestone": "M10",
+      "title": "工具结果折叠 + Shift-↑ 消息滚动回看",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "ui-tui/src/state/transcriptStore.ts (扩展)",
+        "ui-tui/src/components/messageNavigator.tsx",
+        "ui-tui/src/__tests__/messageNavigator.test.tsx"
+      ],
+      "acceptance_criteria": [
+        "tool_result 字符数 > 200 时默认折叠，渲染 '… (N more lines, Space to expand)'",
+        "Space/Enter 在选中态展开/收起",
+        "Shift-↑ 进入消息导航模式，高亮选中条目",
+        "↑↓ 切换条目，Space 切换展开，Esc 退出",
+        "导航期间禁用底部输入框"
+      ],
+      "unit_tests": [
+        "折叠阈值边界",
+        "navigator reducer 切换 selected index",
+        "Esc 退出回到 input 模式"
+      ],
+      "dependencies": [
+        "GAE-039"
+      ]
+    },
+    {
+      "id": "GAE-045",
+      "milestone": "M10",
+      "title": "工具审批提示（Approval prompts）",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "src/generic_agent_engineered/runtime/approvals.py",
+        "ui-tui/src/components/approvalPrompt.tsx",
+        "tests/test_approvals.py"
+      ],
+      "acceptance_criteria": [
+        "shell/file_write/file_patch/code_run 进入审批 gate",
+        "y/Y 单次允许，n/N 拒绝（执行返回 is_error），a 永久允许该工具",
+        "审批策略持久化到 $GENERIC_AGENT_HOME/approvals.json",
+        "yolo 模式跳过审批",
+        "审批 widget 显示工具名 + 参数预览"
+      ],
+      "unit_tests": [
+        "approvals.json 读写 atomic",
+        "always-allow 持久化",
+        "yolo 跳过",
+        "拒绝时 ToolResult is_error=True 且包含原因"
+      ],
+      "dependencies": [
+        "GAE-038"
+      ]
+    },
+    {
+      "id": "GAE-046",
+      "milestone": "M10",
+      "title": "快捷键全集 + 通知 + 帮助页 + M10 收尾",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/notifications.tsx",
+        "ui-tui/src/components/helpOverlay.tsx",
+        "ui-tui/src/state/notificationStore.ts",
+        "docs/SHORTCUTS.md",
+        "CHANGELOG.md (Unreleased 段更新)",
+        "tasks.json (M10 done, GAE-039..046 done)"
+      ],
+      "acceptance_criteria": [
+        "Ctrl-L 清屏（不退出 session）",
+        "Ctrl-G 中断进行中的 turn（同 Ctrl-C 第一次按）",
+        "Ctrl-D 空输入时退出，否则前向删除字符",
+        "? 或 /shortcuts 弹帮助 overlay",
+        "toast 通知（顶部右侧，3s 淡出）",
+        "状态栏 mode pill 显示当前模式",
+        "docs/SHORTCUTS.md 列出所有快捷键"
+      ],
+      "unit_tests": [
+        "notification reducer 自动过期",
+        "Ctrl-D 空与非空行为分支"
+      ],
+      "dependencies": [
+        "GAE-039",
+        "GAE-040",
+        "GAE-041",
+        "GAE-042",
+        "GAE-043",
+        "GAE-044",
+        "GAE-045"
+      ]
+    },
+    {
+      "id": "GAE-047",
+      "milestone": "M11",
+      "title": "Free-code TUI 全量缺口扫描 + M11 任务队列",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tasks.json (M11 + parity scan + GAE-047..060)",
+        "tasks/TASK_REPORT.md (GAE-047 scan report)"
+      ],
+      "acceptance_criteria": [
+        "free-code TUI surfaces are grouped into concrete migration categories",
+        "tasks.json contains an ordered migration queue with dependencies",
+        "planning commit contains no unrelated implementation changes"
+      ],
+      "unit_tests": [
+        "python3 -m json.tool tasks.json"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "GAE-048",
+      "milestone": "M11",
+      "title": "浏览器桥接/扫描可靠性 + 工具结果摘要迁移",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "assets/tmwd_cdp_bridge/background.js",
+        "src/generic_agent_engineered/browser/cdp_bridge.py",
+        "src/generic_agent_engineered/tools/browser.py",
+        "ui-tui/src/toolSummary.ts",
+        "ui-tui/src/__tests__/toolSummary.test.ts",
+        "tests/test_browser_tools.py"
+      ],
+      "acceptance_criteria": [
+        "web_scan timeout diagnostics explicitly tell the user to run gae bridge when bridge is unavailable",
+        "initial active tab selection prefers the real current Chrome tab",
+        "CDP request timeout leaves margin beyond script timeout",
+        "tool result summary logic is isolated and tested"
+      ],
+      "unit_tests": [
+        "uv run python tests/test_browser_tools.py",
+        "SKIP_INSTALL=1 ./scripts/build_tui.sh"
+      ],
+      "dependencies": [
+        "GAE-047"
+      ]
+    },
+    {
+      "id": "GAE-049",
+      "milestone": "M11",
+      "title": "Free-code dialog/fuzzy-picker 设计系统基础",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/dialog.tsx",
+        "ui-tui/src/components/fuzzyPicker.tsx",
+        "ui-tui/src/components/searchBox.tsx",
+        "ui-tui/src/components/tabs.tsx",
+        "ui-tui/src/state/overlayStack.ts"
+      ],
+      "acceptance_criteria": [
+        "common dialog and picker primitives support keyboard navigation",
+        "existing slash/history/help overlays migrate to shared primitives",
+        "snapshot/unit tests cover focus, filtering, close/confirm behavior"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm test",
+        "cd ui-tui && npm run type-check"
+      ],
+      "dependencies": [
+        "GAE-047"
+      ]
+    },
+    {
+      "id": "GAE-050",
+      "milestone": "M11",
+      "title": "PromptInput parity pass 1：footer、队列、stashed prompt、输入状态",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/promptInput/*",
+        "ui-tui/src/state/inputBuffer.ts",
+        "ui-tui/src/App.tsx"
+      ],
+      "acceptance_criteria": [
+        "footer shows mode/context/queued-command state",
+        "queued commands can be staged and executed in order",
+        "interrupted/stashed prompt restores cleanly",
+        "existing bash/@file/vim/history behavior remains intact"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm test",
+        "cd ui-tui && npm run type-check"
+      ],
+      "dependencies": [
+        "GAE-049"
+      ]
+    },
+    {
+      "id": "GAE-051",
+      "milestone": "M11",
+      "title": "PromptInput parity pass 2：Quick Open、Global Search、Model/Theme/Thinking pickers",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/quickOpenDialog.tsx",
+        "ui-tui/src/components/globalSearchDialog.tsx",
+        "ui-tui/src/components/modelPicker.tsx",
+        "ui-tui/src/components/themePicker.tsx",
+        "ui-tui/src/components/thinkingToggle.tsx"
+      ],
+      "acceptance_criteria": [
+        "quick-open finds workspace files",
+        "global transcript search navigates results",
+        "model/theme/output-style/thinking controls are keyboard operable",
+        "unsupported backends are feature-gated with clear UI copy"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm test",
+        "cd ui-tui && npm run type-check"
+      ],
+      "dependencies": [
+        "GAE-049",
+        "GAE-050"
+      ]
+    },
+    {
+      "id": "GAE-052",
+      "milestone": "M11",
+      "title": "消息面板 parity：虚拟列表、搜索、选择、动作",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/virtualMessageList.tsx",
+        "ui-tui/src/components/messageRow.tsx",
+        "ui-tui/src/components/messageSelector.tsx",
+        "ui-tui/src/components/transcriptSearchOverlay.tsx"
+      ],
+      "acceptance_criteria": [
+        "long transcripts render without layout thrash",
+        "message selection and actions work from keyboard",
+        "transcript search highlights and jumps to matches",
+        "sticky prompt/unseen divider behavior is covered by tests"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm test",
+        "cd ui-tui && npm run type-check"
+      ],
+      "dependencies": [
+        "GAE-049"
+      ]
+    },
+    {
+      "id": "GAE-053",
+      "milestone": "M11",
+      "title": "工具渲染 parity：diff、bash progress、tool-specific renderers",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/fileEditToolDiff.tsx",
+        "ui-tui/src/components/structuredDiff.tsx",
+        "ui-tui/src/components/bashModeProgress.tsx",
+        "ui-tui/src/components/toolUseLoader.tsx"
+      ],
+      "acceptance_criteria": [
+        "file edits render structured diffs",
+        "bash/tool progress renders incrementally",
+        "read/search/fetch/todo outputs get purpose-built compact renderers",
+        "long output folding remains accessible"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm test",
+        "cd ui-tui && npm run type-check"
+      ],
+      "dependencies": [
+        "GAE-049",
+        "GAE-052"
+      ]
+    },
+    {
+      "id": "GAE-054",
+      "milestone": "M11",
+      "title": "Slash/local command parity core",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "src/generic_agent_engineered/commands/registry.py",
+        "ui-tui/src/components/slashOverlay.tsx",
+        "docs/COMMANDS.md"
+      ],
+      "acceptance_criteria": [
+        "registry covers free-code core local commands where backend support exists",
+        "missing backend commands show explicit feature-gated unavailable state",
+        "slash overlay exposes aliases, descriptions, and argument hints"
+      ],
+      "unit_tests": [
+        "python3 -m unittest discover -s tests",
+        "cd ui-tui && npm test"
+      ],
+      "dependencies": [
+        "GAE-049"
+      ]
+    },
+    {
+      "id": "GAE-055",
+      "milestone": "M11",
+      "title": "权限/沙箱模式 parity",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/permissionRequest.tsx",
+        "ui-tui/src/components/sandboxPermissionRequest.tsx",
+        "src/generic_agent_engineered/config/*",
+        "src/generic_agent_engineered/commands/registry.py"
+      ],
+      "acceptance_criteria": [
+        "permission requests support allow/deny/session choices",
+        "sandbox violations render with actionable recovery choices",
+        "permission/sandbox settings persist and can be inspected",
+        "tests cover deny/allow/session policy paths"
+      ],
+      "unit_tests": [
+        "python3 -m unittest discover -s tests",
+        "cd ui-tui && npm test"
+      ],
+      "dependencies": [
+        "GAE-049",
+        "GAE-054"
+      ]
+    },
+    {
+      "id": "GAE-056",
+      "milestone": "M11",
+      "title": "会话/任务/worktree parity",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "src/generic_agent_engineered/state/*",
+        "src/generic_agent_engineered/commands/registry.py",
+        "ui-tui/src/components/sessionBrowser.tsx",
+        "ui-tui/src/components/backgroundTasksDialog.tsx"
+      ],
+      "acceptance_criteria": [
+        "resume/rename/session browser flows are available",
+        "task list/background task panels mirror backend state",
+        "rewind/branch/export flows are implemented or feature-gated with tests"
+      ],
+      "unit_tests": [
+        "python3 -m unittest discover -s tests",
+        "cd ui-tui && npm test"
+      ],
+      "dependencies": [
+        "GAE-052",
+        "GAE-054"
+      ]
+    },
+    {
+      "id": "GAE-057",
+      "milestone": "M11",
+      "title": "MCP / Plugin / Agents / Hooks UI parity",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "src/generic_agent_engineered/commands/registry.py",
+        "ui-tui/src/components/mcpDialog.tsx",
+        "ui-tui/src/components/pluginDialog.tsx",
+        "ui-tui/src/components/agentsDialog.tsx",
+        "ui-tui/src/components/hooksDialog.tsx"
+      ],
+      "acceptance_criteria": [
+        "MCP/plugin/agents/hooks surfaces are visible from slash commands",
+        "read-only list/detail flows work without extra dependencies",
+        "write flows are either implemented safely or gated behind explicit unsupported states"
+      ],
+      "unit_tests": [
+        "python3 -m unittest discover -s tests",
+        "cd ui-tui && npm test"
+      ],
+      "dependencies": [
+        "GAE-049",
+        "GAE-054"
+      ]
+    },
+    {
+      "id": "GAE-058",
+      "milestone": "M11",
+      "title": "外部集成 parity：IDE/desktop/chrome/voice/remote/mobile",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "src/generic_agent_engineered/commands/registry.py",
+        "ui-tui/src/components/integrationStatusDialog.tsx",
+        "docs/INTEGRATIONS.md"
+      ],
+      "acceptance_criteria": [
+        "IDE/desktop/chrome/voice/remote/mobile commands are discoverable",
+        "available integrations report actionable status",
+        "unavailable integrations fail closed with no misleading success state"
+      ],
+      "unit_tests": [
+        "python3 -m unittest discover -s tests",
+        "cd ui-tui && npm test"
+      ],
+      "dependencies": [
+        "GAE-054",
+        "GAE-057"
+      ]
+    },
+    {
+      "id": "GAE-059",
+      "milestone": "M11",
+      "title": "Onboarding / Status notices / Rate-limit UX parity",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "ui-tui/src/components/welcome.tsx",
+        "ui-tui/src/components/statusNotices.tsx",
+        "ui-tui/src/components/rateLimitOptions.tsx",
+        "CHANGELOG.md"
+      ],
+      "acceptance_criteria": [
+        "welcome and status notices reflect provider/auth/session state",
+        "token/rate-limit warnings are visible and dismissible",
+        "release notes/update status are surfaced where applicable"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm test",
+        "cd ui-tui && npm run type-check"
+      ],
+      "dependencies": [
+        "GAE-049",
+        "GAE-054"
+      ]
+    },
+    {
+      "id": "GAE-060",
+      "milestone": "M11",
+      "title": "M11 parity QA、文档、最终收尾",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "tasks.json",
+        "tasks/TASK_REPORT.md",
+        "docs/TUI.md",
+        "docs/COMMANDS.md",
+        "CHANGELOG.md"
+      ],
+      "acceptance_criteria": [
+        "all M11 tasks are done or explicitly deferred with reason",
+        "full Python and TUI verification passes or gaps are recorded",
+        "M11 milestone marked done",
+        "final report maps each free-code TUI area to migrated implementation"
+      ],
+      "unit_tests": [
+        "python3 -m json.tool tasks.json",
+        "python3 -m unittest discover -s tests",
+        "SKIP_INSTALL=1 ./scripts/build_tui.sh",
+        "git diff --check"
+      ],
+      "dependencies": [
+        "GAE-047",
+        "GAE-048",
+        "GAE-049",
+        "GAE-050",
+        "GAE-051",
+        "GAE-052",
+        "GAE-053",
+        "GAE-054",
+        "GAE-055",
+        "GAE-056",
+        "GAE-057",
+        "GAE-058",
+        "GAE-059"
+      ]
+    },
+    {
+      "id": "GAE-061",
+      "milestone": "M12",
+      "title": "Free-code TUI 反馈修正：Bash 折叠、Crunched、slash/hooks audit",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/components/messageRow.tsx",
+        "ui-tui/src/state/transcriptStore.ts",
+        "ui-tui/src/toolSummary.ts",
+        "src/generic_agent_engineered/commands/registry.py",
+        "src/generic_agent_engineered/commands/local.py",
+        "src/generic_agent_engineered/commands/extensions.py",
+        "docs/COMMANDS.md",
+        "docs/TUI.md",
+        "tasks/TASK_REPORT.md"
+      ],
+      "acceptance_criteria": [
+        "shell/code_run collapsed output renders as free-code-style preview lines with hidden-line counts",
+        "finished assistant messages show a final Crunched duration",
+        "free-code slash command names are either implemented or explicitly feature-gated",
+        "hooks parity gap is visible instead of implied complete"
+      ],
+      "unit_tests": [
+        "python3 -m unittest tests.test_commands",
+        "cd ui-tui && npm run type-check",
+        "cd ui-tui && npm test",
+        "SKIP_INSTALL=1 ./scripts/build_tui.sh"
+      ],
+      "dependencies": [
+        "GAE-060"
+      ]
+    },
+    {
+      "id": "GAE-062",
+      "milestone": "M12",
+      "title": "Free-code transcript mode keybindings：ctrl+o / ctrl+e",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "ui-tui/src/App.tsx",
+        "ui-tui/src/components/messageRow.tsx",
+        "ui-tui/src/components/virtualMessageList.tsx",
+        "ui-tui/src/components/statusBar.tsx",
+        "ui-tui/src/__tests__/virtualMessageList.test.ts",
+        "src/generic_agent_engineered/_tui_dist/bundle.js",
+        "docs/TUI.md",
+        "tasks/TASK_REPORT.md"
+      ],
+      "acceptance_criteria": [
+        "ctrl+o toggles global detailed transcript mode",
+        "detailed transcript mode expands collapsed tool results at render time",
+        "ctrl+e toggles show-all transcript rendering and disables window hiding",
+        "status bar exposes the detailed transcript shortcut hints"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm run type-check",
+        "cd ui-tui && npm test",
+        "SKIP_INSTALL=1 ./scripts/build_tui.sh"
+      ],
+      "dependencies": [
+        "GAE-061"
+      ]
+    },
+    {
+      "id": "GAE-063",
+      "milestone": "M12",
+      "title": "OpenAI Responses duplicate tool-call guard",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "src/generic_agent_engineered/providers/openai_responses.py",
+        "tests/test_provider_clients.py",
+        "tasks/TASK_REPORT.md"
+      ],
+      "acceptance_criteria": [
+        "Responses streaming output_item.done events are deduped before tool execution",
+        "final response.completed merge uses the same semantic duplicate guard",
+        "duplicate tool calls with different provider ids but identical name and arguments emit once"
+      ],
+      "unit_tests": [
+        "python3 -m unittest tests.test_provider_clients",
+        "python3 -m json.tool tasks.json",
+        "python3 -m compileall -q src tests"
+      ],
+      "dependencies": [
+        "GAE-062"
+      ]
+    },
+    {
+      "id": "GAE-064",
+      "milestone": "M12",
+      "title": "Remove stale M11 welcome release note",
+      "status": "done",
+      "priority": "P2",
+      "deliverables": [
+        "ui-tui/src/components/welcome.tsx",
+        "src/generic_agent_engineered/_tui_dist/bundle.js",
+        "tasks/TASK_REPORT.md"
+      ],
+      "acceptance_criteria": [
+        "TUI welcome no longer displays the M11 parity migration release note",
+        "rebuilt bundled TUI artifact no longer contains the removed sentence"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm run type-check",
+        "SKIP_INSTALL=1 ./scripts/build_tui.sh",
+        "rg \"M11 parity migration adds session panels\" ui-tui/src src/generic_agent_engineered/_tui_dist"
+      ],
+      "dependencies": [
+        "GAE-063"
+      ]
+    },
+    {
+      "id": "GAE-065",
+      "milestone": "M12",
+      "title": "Blue GenericAgent welcome banner",
+      "status": "done",
+      "priority": "P1",
+      "deliverables": [
+        "ui-tui/src/banner.ts",
+        "ui-tui/src/components/welcome.tsx",
+        "ui-tui/src/__tests__/banner.test.ts",
+        "src/generic_agent_engineered/_tui_dist/bundle.js",
+        "tasks/TASK_REPORT.md"
+      ],
+      "acceptance_criteria": [
+        "TUI welcome renders a GenericAgent ASCII logo instead of plain title text",
+        "wide terminals include a GenericAgent-specific runtime/tool/memory emblem",
+        "welcome banner uses a cool blue palette inspired by hermes-agent slate skin",
+        "narrow terminals retain compact responsive logo behavior"
+      ],
+      "unit_tests": [
+        "cd ui-tui && npm run type-check",
+        "cd ui-tui && npm test -- src/__tests__/banner.test.ts",
+        "SKIP_INSTALL=1 ./scripts/build_tui.sh"
+      ],
+      "dependencies": [
+        "GAE-064"
+      ]
+    },
+    {
+      "id": "GAE-066",
+      "milestone": "M12",
+      "title": "Normalize public README and operations docs",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "README.md",
+        "docs/INSTALLATION.md",
+        "docs/CONFIGURATION.md",
+        "docs/DEPLOYMENT.md",
+        "docs/DEVELOPMENT.md",
+        "tasks/TASK_REPORT.md"
+      ],
+      "acceptance_criteria": [
+        "README describes current GenericAgent Engineered features and quick start",
+        "configuration docs cover .generic-agent project settings and global GENERIC_AGENT_HOME settings",
+        "installation docs cover uv source usage and global uv tool install",
+        "deployment docs cover bundled TUI artifacts, browser bridge, and CI smoke checks",
+        "development docs cover code layout, task workflow, provider/tool/command extension, and verification"
+      ],
+      "unit_tests": [
+        "python3 -m json.tool tasks.json",
+        "python3 -m compileall -q src tests",
+        "cd ui-tui && npm run type-check"
+      ],
+      "dependencies": [
+        "GAE-065"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "新 CLI 的正式命令名是否使用 gae、generic-agent，还是覆盖旧 python agentmain.py 入口？",
+      "default_assumption": "M9 决定：GenericAgent / ga / gae 三个 console_script 全部指向 TS TUI launcher，gae 保留作向后兼容别名。",
+      "resolved_by": "M9"
+    },
+    {
+      "id": "Q2",
+      "question": "OpenAI OAuth 是否必须完全兼容 Codex CLI/ChatGPT Codex 后端，还是只需要 OpenAI API key + Responses API？",
+      "default_assumption": "两条都做：P0 支持 API key，P1 接入 Codex OAuth。"
+    },
+    {
+      "id": "Q3",
+      "question": "浏览器控制是否继续兼容旧 TMWebDriver 扩展，还是换成 CDP 原生连接？",
+      "default_assumption": "先兼容旧 TMWebDriver，再抽象 CDP adapter。"
+    }
+  ],
+  "current_verification": {
+    "planned_commands": [
+      "python3 -m json.tool tasks.json",
+      "python3 -m compileall -q src tests",
+      "python3 -m unittest discover -s tests",
+      "UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync pytest",
+      "UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync ruff check .",
+      "UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync mypy src",
+      "PYTHONPATH=src python3 -m generic_agent_engineered.cli --version",
+      "PYTHONPATH=src python3 -m generic_agent_engineered.cli doctor",
+      "PYTHONPATH=src python3 -m generic_agent_engineered.cli status",
+      "PYTHONPATH=src python3 -m generic_agent_engineered.cli chat /status (note: M9 移除 --plain/--no-animations 标志)",
+      "PYTHONPATH=src python3 -m generic_agent_engineered.cli task /tmp/ga-engineered-task-smoke --input /status",
+      "UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync gae --version",
+      "test -f CHANGELOG.md",
+      "test -f docs/RELEASE_CHECKLIST.md",
+      "test -f tasks/TASK_REPORT.md",
+      "test ! -e TASK_REPORT.md",
+      "git diff --check"
+    ],
+    "git_scope": "ga_engineered standalone repository"
+  },
+  "free_code_tui_parity_scan": {
+    "source_root": "free-code/src",
+    "target_root": "ga_engineered/ui-tui/src",
+    "scan_date": "2026-04-26",
+    "status": "migration_complete",
+    "categories": [
+      {
+        "area": "prompt_input_shell",
+        "free_code_refs": [
+          "free-code/src/components/PromptInput/PromptInput.tsx",
+          "free-code/src/components/PromptInput/Footer.tsx",
+          "free-code/src/components/QuickOpenDialog.tsx",
+          "free-code/src/components/GlobalSearchDialog.tsx",
+          "free-code/src/components/ModelPicker.tsx"
+        ],
+        "missing_in_ga_engineered": [
+          "queued command UI",
+          "stashed prompt restore",
+          "quick open",
+          "global search",
+          "model/theme/output-style pickers",
+          "thinking/ultrathink/plan mode toggles",
+          "paste image/text references",
+          "IDE mentions",
+          "background task/team dialogs"
+        ]
+      },
+      {
+        "area": "message_surface",
+        "free_code_refs": [
+          "free-code/src/components/Messages.tsx",
+          "free-code/src/components/VirtualMessageList.tsx",
+          "free-code/src/components/MessageRow.tsx",
+          "free-code/src/components/MessageSelector.tsx"
+        ],
+        "missing_in_ga_engineered": [
+          "virtualized transcript",
+          "message selection/actions",
+          "transcript search overlay",
+          "sticky prompts/unseen divider",
+          "tool grouping collapse",
+          "offscreen freeze/perf guards"
+        ]
+      },
+      {
+        "area": "tool_rendering",
+        "free_code_refs": [
+          "free-code/src/components/FileEditToolDiff.tsx",
+          "free-code/src/components/StructuredDiff.tsx",
+          "free-code/src/components/BashModeProgress.tsx",
+          "free-code/src/components/ToolUseLoader.tsx"
+        ],
+        "missing_in_ga_engineered": [
+          "structured file diffs",
+          "bash progress stream",
+          "tool-specific renderers",
+          "read/search/fetch grouping",
+          "todo rendering",
+          "long output progressive disclosure"
+        ]
+      },
+      {
+        "area": "commands_and_settings",
+        "free_code_refs": [
+          "free-code/src/commands.ts",
+          "free-code/src/commands/*.tsx"
+        ],
+        "missing_in_ga_engineered": [
+          "diff/export/copy/cost/stats/theme/vim/keybindings/model/effort/statusline/output-style",
+          "rename/resume/rewind/branch/session/task command surfaces",
+          "plugin/agents/hooks/mcp command surfaces",
+          "release notes/rate-limit/privacy/desktop/chrome/mobile/teleport commands"
+        ]
+      },
+      {
+        "area": "permissions_sandbox",
+        "free_code_refs": [
+          "free-code/src/components/PermissionRequest.tsx",
+          "free-code/src/components/SandboxPermissionRequest.tsx",
+          "free-code/src/commands/permissions.tsx",
+          "free-code/src/commands/sandbox-toggle.tsx"
+        ],
+        "missing_in_ga_engineered": [
+          "permission rule editor",
+          "sandbox violation prompt",
+          "bypass/auto-approve mode dialog",
+          "persistent permission summaries"
+        ]
+      },
+      {
+        "area": "session_task_worktree",
+        "free_code_refs": [
+          "free-code/src/screens/REPL.tsx",
+          "free-code/src/commands/resume.tsx",
+          "free-code/src/commands/rewind.tsx",
+          "free-code/src/commands/tasks.tsx",
+          "free-code/src/commands/branch.tsx"
+        ],
+        "missing_in_ga_engineered": [
+          "session browser",
+          "rename/rewind/branch flows",
+          "background task panels",
+          "worktree/file-history actions",
+          "export/share flows"
+        ]
+      },
+      {
+        "area": "mcp_plugin_agents_hooks",
+        "free_code_refs": [
+          "free-code/src/commands/mcp.tsx",
+          "free-code/src/commands/plugin.tsx",
+          "free-code/src/commands/agents.tsx",
+          "free-code/src/commands/hooks.tsx"
+        ],
+        "missing_in_ga_engineered": [
+          "MCP management dialogs",
+          "plugin marketplace/list/reload UI",
+          "custom agent editor/list",
+          "hooks configuration UI"
+        ]
+      },
+      {
+        "area": "status_onboarding_integrations",
+        "free_code_refs": [
+          "free-code/src/components/StatusLine.tsx",
+          "free-code/src/components/StatusNotices.tsx",
+          "free-code/src/components/LogoV2.tsx",
+          "free-code/src/commands/desktop.tsx",
+          "free-code/src/commands/chrome.tsx",
+          "free-code/src/commands/mobile.tsx",
+          "free-code/src/commands/teleport.tsx"
+        ],
+        "missing_in_ga_engineered": [
+          "welcome/status notices",
+          "token/rate-limit warnings",
+          "release notes/update UI",
+          "desktop/IDE/chrome/voice/remote/mobile integration surfaces with feature gates"
+        ]
+      }
+    ],
+    "execution_rule": "Implement tasks strictly in ascending GAE id order. After each task: update tasks/TASK_REPORT.md, update tasks.json status, run focused verification, commit using Lore protocol, then continue."
+  }
+}
