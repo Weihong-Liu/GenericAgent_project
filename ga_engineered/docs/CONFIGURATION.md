@@ -10,7 +10,7 @@ Highest priority wins:
 1. CLI overrides
 2. environment variables
 3. nearest project config, walking up from the current directory
-4. global user config in `$GENERIC_AGENT_HOME`
+4. global user config in the GenericAgent config directory
 5. built-in defaults
 
 Defaults:
@@ -73,16 +73,22 @@ Default global directory:
 ~/.generic-agent
 ```
 
-Override it:
+Override it with the free-code-style config directory env var:
 
 ```bash
-export GENERIC_AGENT_HOME="$HOME/.config/generic-agent"
+export GENERIC_AGENT_CONFIG_DIR="$HOME/.config/generic-agent"
 ```
+
+`GA_CONFIG_DIR` is the short alias. `GENERIC_AGENT_HOME` remains supported for
+older scripts. `CLAUDE_CONFIG_DIR` is accepted only as a compatibility fallback
+when no GenericAgent-specific config dir variable is set, so shells copied from
+free-code/Claude Code setups such as `export CLAUDE_CONFIG_DIR=.claude_config_glm`
+still work during migration.
 
 Global config path:
 
 ```text
-$GENERIC_AGENT_HOME/settings.json
+$GENERIC_AGENT_CONFIG_DIR/settings.json
 ```
 
 Example global config:
@@ -101,15 +107,57 @@ Example global config:
 State and auth are stored under the same home:
 
 ```text
-$GENERIC_AGENT_HOME/auth.json
-$GENERIC_AGENT_HOME/state/sessions.sqlite
+$GENERIC_AGENT_CONFIG_DIR/auth.json
+$GENERIC_AGENT_CONFIG_DIR/state/sessions.sqlite
 ```
+
+## Global Home Layout
+
+At runtime GenericAgent initializes a free-code-inspired home layout under
+`~/.generic-agent` or the configured directory. The active baseline files are:
+
+```text
+config.json
+history.jsonl
+settings.json
+stats-cache.json
+```
+
+Standard directories:
+
+```text
+agents
+backups
+cache
+debug
+downloads
+file-history
+ide
+paste-cache
+plans
+plugins
+projects
+session-env
+sessions
+shell-snapshots
+skills
+state
+statsig
+tasks
+teams
+telemetry
+todos
+transcripts
+```
+
+`settings.json.bak` and `settings.json.orig` are reserved backup paths and are
+not created unless a migration or recovery flow needs them.
 
 ## Supported Keys
 
 | Key | Aliases | Meaning |
 |---|---|---|
-| `home` | `agent_home`, `generic_agent_home` | Override `GENERIC_AGENT_HOME` from config. |
+| `home` | `agent_home`, `generic_agent_home`, `config_dir`, `generic_agent_config_dir` | Override the GenericAgent config directory from config. |
 | `provider` | `default_provider` | Default provider id. |
 | `model` | `default_model` | Default model name. |
 | `language` | `lang` | Preferred runtime language. |
@@ -126,7 +174,10 @@ Core runtime:
 
 | Variable | Effect |
 |---|---|
-| `GENERIC_AGENT_HOME` | Global config, auth, state, and memory directory. |
+| `GENERIC_AGENT_CONFIG_DIR` | Preferred global config, auth, state, cache, session, and memory directory. |
+| `GA_CONFIG_DIR` | Short alias for `GENERIC_AGENT_CONFIG_DIR`. |
+| `GENERIC_AGENT_HOME` | Backward-compatible alias for the global config directory. |
+| `CLAUDE_CONFIG_DIR` | free-code/Claude Code compatibility fallback, used only when no GenericAgent-specific config dir var is set. |
 | `GA_PROVIDER` | Default provider id. |
 | `GA_MODEL` | Default model. |
 | `GA_LANG` | Preferred language. |
@@ -218,7 +269,7 @@ DashScope:
 ## Auth Commands
 
 API-key providers read environment variables. Codex OAuth stores credentials in
-`$GENERIC_AGENT_HOME/auth.json`:
+`$GENERIC_AGENT_CONFIG_DIR/auth.json`:
 
 ```bash
 uv run gae chat "/login openai-codex --headless"
@@ -237,6 +288,10 @@ Do not commit secrets or generated state:
 .generic-agent/state/
 .generic-agent/memory/
 .generic-agent/settings.local.json
+.generic-agent/history.jsonl
+.generic-agent/stats-cache.json
+.generic-agent/transcripts/
+.generic-agent/cache/
 ```
 
 It is safe to commit `.generic-agent/settings.json` only when it contains no

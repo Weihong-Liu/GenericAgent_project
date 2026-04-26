@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from generic_agent_engineered.runtime.approvals import ApprovalStore, HIGH_RISK_TOOLS
+from generic_agent_engineered.runtime.approvals import HIGH_RISK_TOOLS, ApprovalStore
 
 from .base import CommandContext, CommandHandler, CommandResult, ParsedCommand
 

@@ -171,13 +171,20 @@ Python `prompt-toolkit` 实现，复用同一个 `CommandRouter` 和 `CommandCon
 
 ```text
 ~/.generic-agent/
+├── agents/
 ├── auth.json
+├── cache/
+├── history.jsonl
+├── projects/
 ├── settings.json
+├── sessions/
+├── skills/
 ├── state/
 │   ├── sessions.sqlite
 │   └── checkpoints/
-├── memory/
-└── logs/
+├── tasks/
+├── telemetry/
+└── transcripts/
 ```
 
 当前第一版实现 `auth.json` 的原子读写、PKCE helper、loopback callback、
@@ -185,7 +192,8 @@ token refresh seam 和 provider token 读取。
 
 Session store 已落地为 `state/session_store.py` + `state/schema.sql`：
 
-- SQLite 文件默认目标为 `$GENERIC_AGENT_HOME/state/sessions.sqlite`。
+- SQLite 文件默认目标为 `$GENERIC_AGENT_CONFIG_DIR/state/sessions.sqlite`
+  （默认 `~/.generic-agent/state/sessions.sqlite`，兼容旧 `$GENERIC_AGENT_HOME`）。
 - `connect()` 初始化 schema，并对文件数据库启用 WAL 和 foreign keys。
 - `sessions` 表保存 session 元数据、provider/model 和 `parent_session_id`。
 - `messages` 表按 `(session_id, sequence)` 追加 provider-neutral `Message.to_dict()`。

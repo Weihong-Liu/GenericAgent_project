@@ -7,18 +7,40 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from generic_agent_engineered.config import (
+    AGENT_HOME_DIR_NAMES,
+    AGENT_HOME_FILE_DEFAULTS,
+    CONFIG_DIR_ENV_NAMES,
     RuntimeSettings,
     find_project_config_path,
     get_agent_home,
+    get_agent_home_env_name,
+    get_agent_home_layout,
     get_project_config_path,
     resolve_runtime_settings,
 )
+from generic_agent_engineered.engine import AgentRuntime
 
 
 class RuntimeSettingsTests(unittest.TestCase):
     def test_home_uses_env_override(self):
         env = {"GENERIC_AGENT_HOME": "/tmp/generic-agent-test"}
         self.assertEqual(get_agent_home(env), Path("/tmp/generic-agent-test"))
+
+    def test_free_code_style_config_dir_aliases(self):
+        env = {
+            "CLAUDE_CONFIG_DIR": "/tmp/claude-compat",
+            "GENERIC_AGENT_HOME": "/tmp/legacy-home",
+            "GA_CONFIG_DIR": "/tmp/ga-short",
+            "GENERIC_AGENT_CONFIG_DIR": "/tmp/ga-config",
+        }
+
+        self.assertEqual(get_agent_home(env), Path("/tmp/ga-config"))
+        self.assertEqual(get_agent_home_env_name(env), "GENERIC_AGENT_CONFIG_DIR")
+        self.assertEqual(
+            RuntimeSettings.from_env({"CLAUDE_CONFIG_DIR": "/tmp/free-code-style"}).home,
+            Path("/tmp/free-code-style"),
+        )
+        self.assertIn("CLAUDE_CONFIG_DIR", CONFIG_DIR_ENV_NAMES)
 
     def test_from_env_defaults(self):
         settings = RuntimeSettings.from_env()
@@ -206,9 +228,51 @@ class RuntimeSettingsTests(unittest.TestCase):
         )
         self.assertEqual(settings.home, Path("/tmp/json-home"))
 
+    def test_json_env_var_can_set_config_dir_alias(self):
+        settings = RuntimeSettings.from_env(
+            {
+                "GA_CONFIG_JSON": json.dumps(
+                    {"env": {"GENERIC_AGENT_CONFIG_DIR": "/tmp/json-config-dir"}}
+                )
+            }
+        )
+        self.assertEqual(settings.home, Path("/tmp/json-config-dir"))
+
     def test_invalid_json_env_var_raises_clear_error(self):
         with self.assertRaisesRegex(ValueError, "GA_CONFIG_JSON"):
             RuntimeSettings.from_env({"GA_CONFIG_JSON": "[]"})
+
+    def test_home_layout_matches_free_code_style_directories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / ".generic-agent"
+            layout = get_agent_home_layout(home).ensure()
+
+            self.assertEqual(layout.home, home)
+            for name in AGENT_HOME_DIR_NAMES:
+                self.assertTrue((home / name).is_dir(), name)
+            for filename, default_content in AGENT_HOME_FILE_DEFAULTS.items():
+                path = home / filename
+                self.assertTrue(path.exists(), filename)
+                self.assertEqual(path.read_text(encoding="utf-8"), default_content)
+
+    def test_runtime_settings_exposes_standard_home_paths(self):
+        settings = RuntimeSettings(home=Path("/tmp/ga-home"))
+
+        self.assertEqual(settings.home_dir("sessions"), Path("/tmp/ga-home/sessions"))
+        self.assertEqual(settings.home_dir("projects"), Path("/tmp/ga-home/projects"))
+        self.assertEqual(settings.home_dir("transcripts"), Path("/tmp/ga-home/transcripts"))
+        self.assertEqual(settings.home_file("history.jsonl"), Path("/tmp/ga-home/history.jsonl"))
+        self.assertEqual(settings.approvals_path, Path("/tmp/ga-home/approvals.json"))
+
+    def test_agent_runtime_initializes_standard_home_layout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "ga-home"
+            runtime = AgentRuntime(settings=RuntimeSettings(home=home))
+
+            self.assertIsNone(runtime.home_layout_error)
+            self.assertTrue((home / "sessions").is_dir())
+            self.assertTrue((home / "projects").is_dir())
+            self.assertTrue((home / "settings.json").is_file())
 
 
 if __name__ == "__main__":

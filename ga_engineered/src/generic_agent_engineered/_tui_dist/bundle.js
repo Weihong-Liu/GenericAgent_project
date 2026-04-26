@@ -54526,7 +54526,7 @@ function useStreamThrottle({
 import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, appendFileSync } from "node:fs";
 import { dirname } from "node:path";
 function defaultHistoryPath() {
-  const home = process.env["GENERIC_AGENT_HOME"];
+  const home = process.env["GENERIC_AGENT_CONFIG_DIR"] ?? process.env["GA_CONFIG_DIR"] ?? process.env["GENERIC_AGENT_HOME"] ?? process.env["CLAUDE_CONFIG_DIR"];
   if (home && home.length > 0) return `${home.replace(/\/$/, "")}/history.jsonl`;
   const fallback = process.env["HOME"] ?? "/tmp";
   return `${fallback}/.generic-agent/history.jsonl`;

@@ -4,25 +4,10 @@ actually spawning the legacy TMWebDriver."""
 from __future__ import annotations
 
 import os
-import socket
 import unittest
-from contextlib import contextmanager
 from unittest.mock import patch
 
 from generic_agent_engineered.gateway import auto_bridge
-
-
-@contextmanager
-def _free_port_on(port: int):
-    """Bind+release ``port`` so the test does not collide with anything else."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("127.0.0.1", port))
-    sock.listen(1)
-    try:
-        yield port
-    finally:
-        sock.close()
 
 
 class AutoBridgeTests(unittest.TestCase):
@@ -31,8 +16,11 @@ class AutoBridgeTests(unittest.TestCase):
             self.assertIsNone(auto_bridge.maybe_spawn_bridge())
 
     def test_skips_when_port_already_taken(self):
-        with _free_port_on(auto_bridge.BRIDGE_HTTP_PORT), patch.dict(
+        with patch.dict(
             os.environ, {"GA_NO_AUTO_BRIDGE": ""}
+        ), patch(
+            "generic_agent_engineered.gateway.auto_bridge._port_in_use",
+            return_value=True,
         ):
             self.assertIsNone(auto_bridge.maybe_spawn_bridge())
 

@@ -210,5 +210,5 @@ def _missing_api_key_message(spec: ProviderSpec) -> str:
     names = ", ".join(spec.api_key_env_vars) if spec.api_key_env_vars else "an API key"
     return (
         f"Provider {spec.id} requires {names}. Set it in the shell, "
-        ".generic-agent/settings.json env, or the auth store."
+        ".generic-agent/settings.json env, or the GenericAgent auth store."
     )

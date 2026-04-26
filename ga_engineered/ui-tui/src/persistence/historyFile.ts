@@ -19,7 +19,11 @@ interface PersistedRow {
 }
 
 export function defaultHistoryPath(): string {
-  const home = process.env["GENERIC_AGENT_HOME"];
+  const home =
+    process.env["GENERIC_AGENT_CONFIG_DIR"] ??
+    process.env["GA_CONFIG_DIR"] ??
+    process.env["GENERIC_AGENT_HOME"] ??
+    process.env["CLAUDE_CONFIG_DIR"];
   if (home && home.length > 0) return `${home.replace(/\/$/, "")}/history.jsonl`;
   const fallback = process.env["HOME"] ?? "/tmp";
   return `${fallback}/.generic-agent/history.jsonl`;

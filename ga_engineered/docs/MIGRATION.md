@@ -15,7 +15,8 @@
    ```
 
 3. 把项目级配置写入 `.generic-agent/settings.json`，把全局配置写入
-   `$GENERIC_AGENT_HOME/settings.json`。旧 `mykey.py` 不再作为新运行时配置入口。
+   `$GENERIC_AGENT_CONFIG_DIR/settings.json`（默认 `~/.generic-agent/settings.json`；
+   旧 `$GENERIC_AGENT_HOME` 仍兼容）。旧 `mykey.py` 不再作为新运行时配置入口。
 4. 使用 `uv run gae status` 确认 provider、model、home、state、auth 路径。
 5. 使用 `MemoryService.load_legacy_index("../GenericAgent")` 读取旧
    `GenericAgent/memory`，再通过人工审核后的 `write_reviewed_entry()` 写入新

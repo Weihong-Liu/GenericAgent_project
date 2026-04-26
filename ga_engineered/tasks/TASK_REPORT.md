@@ -1615,3 +1615,61 @@ land the user in the new TS interface.
 ### Not Tested / Deferred
 
 - No hosted documentation preview was generated locally.
+
+## GAE-067 — Free-code-style GenericAgent config directory and home layout (2026-04-26)
+
+### Scope Completed
+
+- Added free-code-style config directory resolution with the preferred
+  `GENERIC_AGENT_CONFIG_DIR`, short `GA_CONFIG_DIR`, legacy
+  `GENERIC_AGENT_HOME`, and compatibility fallback `CLAUDE_CONFIG_DIR`.
+- Kept the default global directory as `~/.generic-agent`.
+- Added a central `AgentHomeLayout` on `RuntimeSettings` for the standard
+  GenericAgent home directories: agents, backups, cache, debug, downloads,
+  file-history, ide, paste-cache, plans, plugins, projects, session-env,
+  sessions, shell-snapshots, skills, state, statsig, tasks, teams, telemetry,
+  todos, and transcripts.
+- Added baseline file paths/defaults for `config.json`, `history.jsonl`,
+  `settings.json`, and `stats-cache.json`, with `settings.json.bak` and
+  `settings.json.orig` reserved for migration/recovery flows.
+- Runtime startup now best-effort initializes the standard home layout without
+  preventing embedded/test runtimes from constructing if the user config dir is
+  not writable.
+- Routed approval persistence, `/env` reporting, and TUI input history through
+  the new config-dir aliases.
+- Updated docs and README to explain `.generic-agent` project settings, global
+  config-dir overrides, free-code compatibility, and the home layout.
+- Hardened the auto-bridge port test to avoid depending on a real fixed-port
+  bind, and adjusted extension-list tests for the new pre-created `agents/`
+  directory.
+
+### Verification
+
+- `python3 -m unittest tests.test_config tests.test_cli tests.test_approvals`
+  — 48 tests passing.
+- `UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync pytest` — 214
+  passed, 1 skipped.
+- `UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync python -m unittest discover -s tests`
+  — 171 tests passing, 1 skipped.
+- `UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync ruff check src tests`
+  — clean.
+- `UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync mypy src` — clean.
+- `python3 -m compileall -q src tests` — clean.
+- `cd ui-tui && npm run type-check` — clean.
+- `cd ui-tui && npm test` — 26 test files / 206 tests passing.
+- `python3 -m json.tool tasks.json` — clean.
+- `SKIP_INSTALL=1 ./scripts/build_tui.sh` — type-check passed, tests passed,
+  bundle rebuilt.
+- `GENERIC_AGENT_CONFIG_DIR=/tmp/ga-home-smoke UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync gae doctor`
+  — scaffold-ok with `layout ok 22 standard dirs`.
+- `GENERIC_AGENT_CONFIG_DIR=/tmp/ga-home-smoke UV_CACHE_DIR=/tmp/ga-engineered-uv-cache uv run --no-sync gae status`
+  — reports the configured home, state, and auth paths.
+- `find /tmp/ga-home-smoke -maxdepth 1 -mindepth 1 -print` — confirmed the
+  standard home directories and baseline files were created.
+
+### Not Tested / Deferred
+
+- The layout creates path scaffolding and active baseline files; backup files
+  are only reserved, not proactively written, because empty `.bak` / `.orig`
+  files would misrepresent recovery state.
+- No live fresh-install smoke test was run outside the repository checkout.

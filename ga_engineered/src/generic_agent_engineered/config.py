@@ -14,6 +14,12 @@ from .config_loader import extract_runtime_config, load_config_file
 DEFAULT_PROVIDER = "openai"
 DEFAULT_MODEL = "gpt-5.4"
 DEFAULT_LANGUAGE = "zh"
+CONFIG_DIR_ENV_NAMES = (
+    "GENERIC_AGENT_CONFIG_DIR",
+    "GA_CONFIG_DIR",
+    "GENERIC_AGENT_HOME",
+    "CLAUDE_CONFIG_DIR",
+)
 PROJECT_CONFIG_PATHS = (
     Path(".generic-agent") / "settings.json",
     Path(".generic-agent.json"),
@@ -24,6 +30,40 @@ USER_CONFIG_NAMES = ("settings.json", "config.json", "config.yaml", "config.yml"
 PROJECT_CONFIG_PATH = PROJECT_CONFIG_PATHS[0]
 USER_CONFIG_NAME = USER_CONFIG_NAMES[0]
 ENV_CONFIG_JSON_NAMES = ("GA_CONFIG_JSON", "GENERIC_AGENT_CONFIG_JSON")
+AGENT_HOME_DIR_NAMES = (
+    "agents",
+    "backups",
+    "cache",
+    "debug",
+    "downloads",
+    "file-history",
+    "ide",
+    "paste-cache",
+    "plans",
+    "plugins",
+    "projects",
+    "session-env",
+    "sessions",
+    "shell-snapshots",
+    "skills",
+    "state",
+    "statsig",
+    "tasks",
+    "teams",
+    "telemetry",
+    "todos",
+    "transcripts",
+)
+AGENT_HOME_FILE_DEFAULTS = {
+    "config.json": "{}\n",
+    "history.jsonl": "",
+    "settings.json": "{}\n",
+    "stats-cache.json": "{}\n",
+}
+AGENT_HOME_RESERVED_FILE_NAMES = (
+    "settings.json.bak",
+    "settings.json.orig",
+)
 PROXY_ENV_NAMES = (
     "HTTPS_PROXY",
     "https_proxy",
@@ -44,17 +84,31 @@ def _default_agent_home() -> Path:
 def get_agent_home(env: Mapping[str, str] | None = None) -> Path:
     """Return the writable home directory for engineered GenericAgent state."""
     env_map = os.environ if env is None else env
-    override = env_map.get("GENERIC_AGENT_HOME", "").strip()
+    override = _config_dir_from_env(env_map)
     if override:
-        return Path(override).expanduser()
+        return override
 
     json_home = _json_env_overrides(env_map).home
     return json_home if json_home is not None else _default_agent_home()
 
 
+def get_agent_home_env_name(env: Mapping[str, str] | None = None) -> str | None:
+    """Return the env var currently selecting the config home, if any."""
+    env_map = os.environ if env is None else env
+    for name in CONFIG_DIR_ENV_NAMES:
+        if _optional_str(env_map.get(name)) is not None:
+            return name
+    return None
+
+
 def get_user_config_path(env: Mapping[str, str] | None = None) -> Path:
     """Return the user-level config file path."""
     return get_agent_home(env) / USER_CONFIG_NAME
+
+
+def get_agent_home_layout(home: Path | None = None) -> AgentHomeLayout:
+    """Return the free-code-style home layout for a GenericAgent config dir."""
+    return AgentHomeLayout.from_home(_default_agent_home() if home is None else home)
 
 
 def get_project_config_path(cwd: Path | None = None) -> Path:
@@ -114,7 +168,16 @@ class ConfigOverrides:
     @classmethod
     def from_mapping(cls, values: Mapping[str, Any]) -> ConfigOverrides:
         return cls(
-            home=_optional_path(_pick(values, "home", "agent_home", "generic_agent_home")),
+            home=_optional_path(
+                _pick(
+                    values,
+                    "home",
+                    "agent_home",
+                    "generic_agent_home",
+                    "config_dir",
+                    "generic_agent_config_dir",
+                )
+            ),
             default_provider=_optional_str(_pick(values, "default_provider", "provider")),
             default_model=_optional_str(_pick(values, "default_model", "model")),
             language=_optional_str(_pick(values, "language", "lang")),
@@ -141,6 +204,8 @@ class ConfigOverrides:
             "home",
             "agent_home",
             "generic_agent_home",
+            "config_dir",
+            "generic_agent_config_dir",
             "default_provider",
             "provider",
             "default_model",
@@ -172,6 +237,10 @@ class RuntimeSettings:
     proxy: str | None = None
     environment: dict[str, str] = field(default_factory=dict)
 
+    @property
+    def layout(self) -> AgentHomeLayout:
+        return get_agent_home_layout(self.home)
+
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> RuntimeSettings:
         """Resolve settings from defaults plus environment only."""
@@ -184,6 +253,84 @@ class RuntimeSettings:
     @property
     def auth_path(self) -> Path:
         return self.home / "auth.json"
+
+    @property
+    def approvals_path(self) -> Path:
+        return self.home / "approvals.json"
+
+    @property
+    def settings_path(self) -> Path:
+        return self.home / "settings.json"
+
+    @property
+    def config_path(self) -> Path:
+        return self.home / "config.json"
+
+    @property
+    def history_path(self) -> Path:
+        return self.home / "history.jsonl"
+
+    @property
+    def stats_cache_path(self) -> Path:
+        return self.home / "stats-cache.json"
+
+    def home_dir(self, name: str) -> Path:
+        """Return a named directory in the standard GenericAgent home layout."""
+        return self.layout.directory(name)
+
+    def home_file(self, name: str) -> Path:
+        """Return a named file in the standard GenericAgent home layout."""
+        return self.layout.file(name)
+
+    def ensure_home_layout(self, *, create_files: bool = True) -> AgentHomeLayout:
+        """Create the standard GenericAgent home directories and baseline files."""
+        return self.layout.ensure(create_files=create_files)
+
+
+@dataclass(frozen=True)
+class AgentHomeLayout:
+    """Standard ``~/.generic-agent`` layout modelled after free-code ``~/.claude``."""
+
+    home: Path
+    directories: dict[str, Path]
+    files: dict[str, Path]
+    reserved_files: dict[str, Path]
+
+    @classmethod
+    def from_home(cls, home: Path) -> AgentHomeLayout:
+        resolved_home = Path(home).expanduser()
+        return cls(
+            home=resolved_home,
+            directories={name: resolved_home / name for name in AGENT_HOME_DIR_NAMES},
+            files={name: resolved_home / name for name in AGENT_HOME_FILE_DEFAULTS},
+            reserved_files={
+                name: resolved_home / name for name in AGENT_HOME_RESERVED_FILE_NAMES
+            },
+        )
+
+    def directory(self, name: str) -> Path:
+        try:
+            return self.directories[name]
+        except KeyError as exc:
+            raise KeyError(f"unknown GenericAgent home directory: {name}") from exc
+
+    def file(self, name: str) -> Path:
+        if name in self.files:
+            return self.files[name]
+        if name in self.reserved_files:
+            return self.reserved_files[name]
+        raise KeyError(f"unknown GenericAgent home file: {name}")
+
+    def ensure(self, *, create_files: bool = True) -> AgentHomeLayout:
+        self.home.mkdir(parents=True, exist_ok=True)
+        for directory in self.directories.values():
+            directory.mkdir(parents=True, exist_ok=True)
+        if create_files:
+            for filename, default_content in AGENT_HOME_FILE_DEFAULTS.items():
+                path = self.home / filename
+                if not path.exists():
+                    path.write_text(default_content, encoding="utf-8")
+        return self
 
 
 def resolve_runtime_settings(
@@ -230,7 +377,7 @@ def _env_overrides(env: Mapping[str, str]) -> ConfigOverrides:
 
 def _env_name_overrides(env: Mapping[str, str]) -> ConfigOverrides:
     return ConfigOverrides(
-        home=_optional_path(env.get("GENERIC_AGENT_HOME")),
+        home=_config_dir_from_env(env),
         default_provider=_optional_str(env.get("GA_PROVIDER")),
         default_model=_optional_str(env.get("GA_MODEL")),
         language=_optional_str(env.get("GA_LANG")),
@@ -253,6 +400,14 @@ def _json_env_overrides(env: Mapping[str, str]) -> ConfigOverrides:
             raise ValueError(f"{name} must contain a JSON object")
         return _overrides_from_config_mapping(parsed)
     return ConfigOverrides()
+
+
+def _config_dir_from_env(env: Mapping[str, str]) -> Path | None:
+    for name in CONFIG_DIR_ENV_NAMES:
+        value = _optional_path(env.get(name))
+        if value is not None:
+            return value
+    return None
 
 
 def _file_overrides(path: Path) -> ConfigOverrides:

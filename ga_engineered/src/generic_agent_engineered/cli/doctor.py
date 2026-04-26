@@ -50,6 +50,7 @@ def build_diagnostic_report(runtime: AgentRuntime | None = None) -> DiagnosticRe
     checks = (
         _provider_check(resolved_runtime),
         _home_check(resolved_runtime),
+        _layout_check(resolved_runtime),
         _auth_check(resolved_runtime),
         _state_check(resolved_runtime),
         _tool_check(),
@@ -91,6 +92,23 @@ def _home_check(runtime: AgentRuntime) -> DiagnosticCheck:
     if home.parent.exists():
         return DiagnosticCheck("home", "ok", f"{home} (ready to create)")
     return DiagnosticCheck("home", "error", f"parent does not exist: {home.parent}")
+
+
+def _layout_check(runtime: AgentRuntime) -> DiagnosticCheck:
+    if runtime.home_layout_error is not None:
+        return DiagnosticCheck("layout", "error", str(runtime.home_layout_error))
+    missing = [
+        name
+        for name, path in runtime.settings.layout.directories.items()
+        if not path.exists() or not path.is_dir()
+    ]
+    if not missing:
+        return DiagnosticCheck(
+            "layout",
+            "ok",
+            f"{len(runtime.settings.layout.directories)} standard dirs",
+        )
+    return DiagnosticCheck("layout", "warn", f"missing dirs: {', '.join(missing[:6])}")
 
 
 def _auth_check(runtime: AgentRuntime) -> DiagnosticCheck:

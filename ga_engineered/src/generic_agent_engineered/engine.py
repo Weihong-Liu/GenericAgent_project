@@ -24,6 +24,14 @@ class AgentRuntime:
 
     def __init__(self, settings: RuntimeSettings | None = None) -> None:
         self.settings = settings or resolve_runtime_settings()
+        self.home_layout_error: OSError | None = None
+        try:
+            self.settings.ensure_home_layout()
+        except OSError as exc:
+            # Some embedded/test contexts intentionally run without permission
+            # to write the user config dir. Keep runtime construction usable;
+            # doctor/status surface the configured paths.
+            self.home_layout_error = exc
         self.providers = build_provider_registry()
         provider = self.providers.resolve(self.settings.default_provider)
         self.state = RuntimeState(

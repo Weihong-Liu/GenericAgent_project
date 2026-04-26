@@ -50,7 +50,7 @@ listed here works while the input is focused.
 |---|---|
 | `y` / `Y` / `Enter` | allow this call once |
 | `n` / `N` / `Esc` | deny |
-| `a` / `A` | always allow this tool (persisted to `$GENERIC_AGENT_HOME/approvals.json`) |
+| `a` / `A` | always allow this tool (persisted to `$GENERIC_AGENT_CONFIG_DIR/approvals.json`, default `~/.generic-agent/approvals.json`) |
 
 ## Session
 

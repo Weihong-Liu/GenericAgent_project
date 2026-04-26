@@ -1,6 +1,5 @@
 """Persistent state stores."""
 
-from .session_store import MessageSearchResult, SessionRecord, SessionStore, StoredMessage
 from .extension_views import (
     ExtensionSummary,
     list_agents,
@@ -14,6 +13,7 @@ from .integration_views import (
     integration_status,
     list_integration_statuses,
 )
+from .session_store import MessageSearchResult, SessionRecord, SessionStore, StoredMessage
 from .workspace_views import (
     BackgroundTaskSummary,
     SessionSummary,

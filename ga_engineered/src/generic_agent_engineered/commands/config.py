@@ -10,7 +10,7 @@ from typing import Any
 
 from generic_agent_engineered.auth.openai_oauth import PROVIDER_ID, OpenAICodexOAuthClient
 from generic_agent_engineered.auth.store import AuthStore
-from generic_agent_engineered.config import PROXY_ENV_NAMES
+from generic_agent_engineered.config import CONFIG_DIR_ENV_NAMES, PROXY_ENV_NAMES
 
 from .base import CommandContext, CommandHandler, CommandResult, ParsedCommand
 
@@ -255,7 +255,7 @@ def _effective_environment(context: CommandContext) -> dict[str, str]:
 
 def _environment_names(context: CommandContext) -> list[str]:
     names = {
-        "GENERIC_AGENT_HOME",
+        *CONFIG_DIR_ENV_NAMES,
         "GA_CONFIG_JSON",
         "GENERIC_AGENT_CONFIG_JSON",
         "GA_PROVIDER",

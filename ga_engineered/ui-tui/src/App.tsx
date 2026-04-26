@@ -157,7 +157,7 @@ export function App({ client, initialStatus }: AppProps): React.ReactElement {
   const [fileMatches, setFileMatches] = useState<readonly { path: string }[]>([]);
   const [fileSelectedIndex, setFileSelectedIndex] = useState(0);
   const [fileLoading, setFileLoading] = useState(false);
-  // History bootstrapped from $GENERIC_AGENT_HOME/history.jsonl.
+  // History bootstrapped from the GenericAgent config dir's history.jsonl.
   const initialHistory = useMemo<HistoryEntry[]>(() => loadHistory(), []);
   const history = useInputHistory({
     initial: initialHistory,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 
 from generic_agent_engineered import __version__
 from generic_agent_engineered.runtime.token_budget import estimate_messages_tokens
@@ -17,7 +16,10 @@ from .base import CommandContext, CommandHandler, CommandResult, ParsedCommand
 
 
 def handle_version(_context: CommandContext, _parsed: ParsedCommand) -> CommandResult:
-    return CommandResult(f"GenericAgent Engineered {__version__}", metadata={"version": __version__})
+    return CommandResult(
+        f"GenericAgent Engineered {__version__}",
+        metadata={"version": __version__},
+    )
 
 
 def handle_stats(context: CommandContext, _parsed: ParsedCommand) -> CommandResult:
@@ -110,7 +112,8 @@ def handle_keybindings(_context: CommandContext, _parsed: ParsedCommand) -> Comm
 
 def handle_statusline(_context: CommandContext, _parsed: ParsedCommand) -> CommandResult:
     return CommandResult(
-        "Statusline is managed by the TypeScript TUI and shows model, turn count, tokens, busy state, and Vim mode."
+        "Statusline is managed by the TypeScript TUI and shows model, turn count, "
+        "tokens, busy state, and Vim mode."
     )
 
 
@@ -119,7 +122,10 @@ def handle_copy(_context: CommandContext, _parsed: ParsedCommand) -> CommandResu
 
 
 def handle_theme(_context: CommandContext, _parsed: ParsedCommand) -> CommandResult:
-    return _feature_gated("theme", "Use Ctrl-T for the current UI picker; persistent theme backend is not wired yet.")
+    return _feature_gated(
+        "theme",
+        "Use Ctrl-T for the current UI picker; persistent theme backend is not wired yet.",
+    )
 
 
 def handle_vim(_context: CommandContext, _parsed: ParsedCommand) -> CommandResult:
@@ -163,7 +169,8 @@ def handle_bridge(_context: CommandContext, _parsed: ParsedCommand) -> CommandRe
                 "Browser bridge",
                 "  command  uv run gae bridge",
                 "  purpose  serves web_scan/web_execute_js through the legacy TMWebDriver bridge",
-                "  note     the TUI gateway best-effort auto-spawns it when bridge extras are installed",
+                "  note     the TUI gateway best-effort auto-spawns it when bridge "
+                "extras are installed",
             ]
         ),
         metadata={"command": "uv run gae bridge"},
@@ -223,7 +230,10 @@ def handle_worktree(_context: CommandContext, _parsed: ParsedCommand) -> Command
 
 def _unsupported(command: str) -> CommandHandler:
     def handler(_context: CommandContext, _parsed: ParsedCommand) -> CommandResult:
-        return _feature_gated(command, f"/{command} is registered for parity but not implemented yet.")
+        return _feature_gated(
+            command,
+            f"/{command} is registered for parity but not implemented yet.",
+        )
 
     return handler
 

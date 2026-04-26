@@ -248,7 +248,10 @@ class CommandRouterTests(unittest.TestCase):
             self.assertIn("--- user:previous", router.dispatch("/diff", context).content)
             self.assertIn("Ctrl-P quick open", router.dispatch("/keybindings", context).content)
             self.assertIn("Statusline is managed", router.dispatch("/statusline", context).content)
-            self.assertIn("Rate limit options", router.dispatch("/rate-limit-options", context).content)
+            self.assertIn(
+                "Rate limit options",
+                router.dispatch("/rate-limit-options", context).content,
+            )
             self.assertIn("GA_VIM_MODE", router.dispatch("/vim", context).content)
             self.assertIn("uv run gae bridge", router.dispatch("/bridge", context).content)
 

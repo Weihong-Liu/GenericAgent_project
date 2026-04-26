@@ -54,8 +54,13 @@
     "style": "参考 free-code 的 JSON settings 分层配置模式。",
     "project_config_dir": ".generic-agent",
     "project_settings": ".generic-agent/settings.json",
-    "global_config_home_env": "GENERIC_AGENT_HOME",
-    "global_settings": "$GENERIC_AGENT_HOME/settings.json",
+    "global_config_home_env": "GENERIC_AGENT_CONFIG_DIR",
+    "global_config_home_env_aliases": [
+      "GA_CONFIG_DIR",
+      "GENERIC_AGENT_HOME",
+      "CLAUDE_CONFIG_DIR"
+    ],
+    "global_settings": "$GENERIC_AGENT_CONFIG_DIR/settings.json",
     "legacy_project_config_compatibility": [
       ".generic-agent.json",
       ".generic-agent.yaml",
@@ -63,7 +68,7 @@
     ],
     "rules": [
       "后续项目级配置相关文件统一放在 .generic-agent/ 目录下。",
-      "后续全局配置相关文件统一放在 $GENERIC_AGENT_HOME/ 目录下。",
+      "后续全局配置相关文件统一放在 $GENERIC_AGENT_CONFIG_DIR/ 目录下；GENERIC_AGENT_HOME 仅作为旧别名兼容。",
       "不要新增散落在项目根目录的配置文件；如需兼容旧路径，只能作为读取回退。"
     ]
   },
@@ -81,7 +86,7 @@
     "OpenAI OAuth/Codex OAuth 先以 PKCE、loopback callback、mocked token exchange 和 AuthStore refresh 起步，再接入真实浏览器联调。",
     "M4 已用 Rich + prompt-toolkit 完成基础 TUI；该 TUI 在 M9 中会被彻底删除，由 TypeScript/Ink 前端（ui-tui/）通过 stdio JSON-RPC gateway 调用 Python 后端唯一承担 TUI 层。M7（Textual）与 M8（可选 TS 原型）已被 M9 superseded。",
     "Provider 抽象优先支持 OpenAI Responses、OpenAI Chat-Compatible、Anthropic Messages、Codex OAuth 四类 transport。",
-    "后续配置文件分为项目级 .generic-agent/settings.json 和全局 $GENERIC_AGENT_HOME/settings.json 两层。",
+    "后续配置文件分为项目级 .generic-agent/settings.json 和全局 $GENERIC_AGENT_CONFIG_DIR/settings.json 两层，默认目录为 ~/.generic-agent。",
     "OpenAI Codex OAuth 的 CLI 登录需要同时支持有头浏览器授权和无头授权；无头模式不自动打开浏览器，只输出授权 URL 并等待或接收 callback/code。"
   ],
   "milestones": [
@@ -169,6 +174,12 @@
       "id": "M12",
       "name": "Free-code TUI Parity Corrections",
       "objective": "根据真实使用反馈修正 M11 后仍存在的 free-code TUI parity 缺口：Bash 折叠输出、完成耗时、slash command 显式覆盖和 hooks 状态披露。",
+      "status": "done"
+    },
+    {
+      "id": "M13",
+      "name": "Free-code-style Config Home Parity",
+      "objective": "参考 free-code 的 CLAUDE_CONFIG_DIR 与 ~/.claude 运行时目录布局，为 GenericAgent Engineered 补齐可覆盖的 .generic-agent 配置目录、标准状态目录和文档。",
       "status": "done"
     }
   ],
@@ -1995,6 +2006,38 @@
       ],
       "dependencies": [
         "GAE-065"
+      ]
+    },
+    {
+      "id": "GAE-067",
+      "milestone": "M13",
+      "title": "Free-code-style GenericAgent config directory and home layout",
+      "status": "done",
+      "priority": "P0",
+      "deliverables": [
+        "src/generic_agent_engineered/config.py",
+        "src/generic_agent_engineered/engine.py",
+        "src/generic_agent_engineered/runtime/approvals.py",
+        "tests/test_config.py",
+        "docs/CONFIGURATION.md",
+        "docs/DEPLOYMENT.md",
+        "README.md",
+        "tasks/TASK_REPORT.md"
+      ],
+      "acceptance_criteria": [
+        "GenericAgent supports a free-code-style config directory override while defaulting to ~/.generic-agent",
+        "GENERIC_AGENT_CONFIG_DIR and GA_CONFIG_DIR are preferred over legacy GENERIC_AGENT_HOME, with CLAUDE_CONFIG_DIR accepted only as a compatibility fallback",
+        "runtime startup initializes a standard ~/.generic-agent directory layout modelled on free-code ~/.claude",
+        "approval, auth, state, sessions, projects, tasks, skills, plugins, telemetry, cache, and transcript paths are centrally exposed from RuntimeSettings",
+        "docs explain .generic-agent project settings, global config directory overrides, and the standard home layout"
+      ],
+      "unit_tests": [
+        "python3 -m unittest tests.test_config tests.test_cli tests.test_approvals",
+        "python3 -m json.tool tasks.json",
+        "python3 -m compileall -q src tests"
+      ],
+      "dependencies": [
+        "GAE-066"
       ]
     }
   ],

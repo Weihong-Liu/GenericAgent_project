@@ -338,7 +338,7 @@ async def test_tasks_and_worktree_status_methods_return_panel_data() -> None:
 async def test_extension_list_methods_return_items(tmp_path) -> None:
     runtime = AgentRuntime(settings=RuntimeSettings(home=tmp_path))
     agents_dir = tmp_path / "agents"
-    agents_dir.mkdir()
+    agents_dir.mkdir(exist_ok=True)
     (agents_dir / "demo.md").write_text("# demo\n", encoding="utf-8")
     server = GatewayServer(
         runtime=runtime,

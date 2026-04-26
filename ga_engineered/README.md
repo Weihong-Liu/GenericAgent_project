@@ -18,8 +18,9 @@ here.
 - Provider clients for OpenAI Responses, OpenAI-compatible Chat Completions,
   Anthropic Messages, OpenAI Codex OAuth, Kimi/Moonshot, DashScope, MiniMax,
   and custom OpenAI-compatible endpoints.
-- Auth and configuration stores under `$GENERIC_AGENT_HOME`, with project-level
-  `.generic-agent/settings.json` support.
+- Auth and configuration stores under `~/.generic-agent` by default, with
+  free-code-style `GENERIC_AGENT_CONFIG_DIR` / `GA_CONFIG_DIR` overrides and
+  project-level `.generic-agent/settings.json` support.
 - Default tools: file read/write/patch, shell, Python code execution,
   `web_open`, `web_scan`, and `web_execute_js`.
 - Legacy browser bridge support through `uv run gae bridge` plus the bundled
@@ -86,8 +87,16 @@ installs, shell PATH notes, and Node/TUI build requirements.
 ## Configuration
 
 Project configuration belongs in `.generic-agent/settings.json`; global
-configuration belongs in `$GENERIC_AGENT_HOME/settings.json` (default
-`~/.generic-agent/settings.json`).
+configuration belongs in `$GENERIC_AGENT_CONFIG_DIR/settings.json` (default
+`~/.generic-agent/settings.json`). `GENERIC_AGENT_HOME` remains a legacy alias,
+and `CLAUDE_CONFIG_DIR` is accepted as a migration fallback for free-code-style
+shell profiles.
+
+```bash
+export GENERIC_AGENT_CONFIG_DIR="$HOME/.generic-agent"
+# or, for a separate profile:
+export GENERIC_AGENT_CONFIG_DIR=".generic-agent-glm"
+```
 
 Minimal project config:
 
@@ -114,7 +123,8 @@ Resolution order is:
 
 See [Configuration](docs/CONFIGURATION.md) for the full schema, environment
 variables, provider examples, proxy setup, browser bridge settings, and
-recommended per-project layout.
+the full free-code-inspired home layout (`agents`, `projects`, `sessions`,
+`skills`, `tasks`, `transcripts`, `telemetry`, caches, backups, and more).
 
 ## Browser Bridge
 

@@ -52,18 +52,32 @@ uv tool install --force dist/generic_agent_engineered-*.whl
 Set a stable home directory on deployed machines:
 
 ```bash
-export GENERIC_AGENT_HOME=/opt/generic-agent/state
-mkdir -p "$GENERIC_AGENT_HOME"
+export GENERIC_AGENT_CONFIG_DIR=/opt/generic-agent/state
+mkdir -p "$GENERIC_AGENT_CONFIG_DIR"
 ```
+
+`GA_CONFIG_DIR` is the short alias. `GENERIC_AGENT_HOME` is still honored for
+older service files, and `CLAUDE_CONFIG_DIR` is accepted as a free-code
+compatibility fallback when no GenericAgent-specific variable is present.
 
 Recommended layout:
 
 ```text
 /opt/generic-agent/
 ├── app/                 # source checkout or installed package reference
-├── state/               # GENERIC_AGENT_HOME
+├── state/               # GENERIC_AGENT_CONFIG_DIR
 │   ├── settings.json
+│   ├── config.json
+│   ├── history.jsonl
 │   ├── auth.json
+│   ├── agents/
+│   ├── cache/
+│   ├── projects/
+│   ├── sessions/
+│   ├── skills/
+│   ├── tasks/
+│   ├── telemetry/
+│   ├── transcripts/
 │   └── state/sessions.sqlite
 └── logs/                # shell/service logs if you wrap the CLI
 ```
@@ -71,8 +85,8 @@ Recommended layout:
 Keep `auth.json` private:
 
 ```bash
-chmod 700 "$GENERIC_AGENT_HOME"
-chmod 600 "$GENERIC_AGENT_HOME/auth.json"
+chmod 700 "$GENERIC_AGENT_CONFIG_DIR"
+chmod 600 "$GENERIC_AGENT_CONFIG_DIR/auth.json"
 ```
 
 ## Browser Bridge Deployment

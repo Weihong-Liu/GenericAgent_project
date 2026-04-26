@@ -1,7 +1,7 @@
 """Tool approval store + async gate.
 
-The store persists ``always-allow`` decisions to
-``$GENERIC_AGENT_HOME/approvals.json`` so the user does not have to
+The store persists ``always-allow`` decisions to the configured
+``~/.generic-agent/approvals.json`` path so the user does not have to
 re-approve the same tool every session. The gate wraps the tool
 registry: for tools whose name appears in ``HIGH_RISK_TOOLS`` we ask
 the frontend, await a decision, and either pass the call through or
@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from generic_agent_engineered.config import get_agent_home
 from generic_agent_engineered.runtime.messages import ToolCall, ToolResult
 
 ApprovalDecision = Literal["allow_once", "allow_always", "deny"]
@@ -168,10 +169,7 @@ def _preview_arguments(arguments: dict[str, object]) -> str:
 
 
 def default_approvals_path() -> Path:
-    home = os.environ.get("GENERIC_AGENT_HOME", "").strip()
-    if home:
-        return Path(home).expanduser() / "approvals.json"
-    return Path.home() / ".generic-agent" / "approvals.json"
+    return get_agent_home() / "approvals.json"
 
 
 __all__ = [

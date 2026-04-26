@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from generic_agent_engineered.runtime.approvals import (
     HIGH_RISK_TOOLS,
     ApprovalGate,
     ApprovalStore,
+    default_approvals_path,
 )
 from generic_agent_engineered.runtime.messages import ToolCall, ToolResult
 
@@ -74,6 +76,14 @@ class ApprovalStoreTests(unittest.TestCase):
         self.assertIn("code_run", HIGH_RISK_TOOLS)
         self.assertIn("file_write", HIGH_RISK_TOOLS)
         self.assertIn("file_patch", HIGH_RISK_TOOLS)
+
+    def test_default_path_uses_config_dir_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            os.environ,
+            {"GENERIC_AGENT_CONFIG_DIR": tmp},
+            clear=True,
+        ):
+            self.assertEqual(default_approvals_path(), Path(tmp) / "approvals.json")
 
 
 class ApprovalGateTests(unittest.IsolatedAsyncioTestCase):
